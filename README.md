@@ -4,7 +4,7 @@
 
 A well-known problem in machine learning is **regression**: as models update, they sometimes "forget" how to correctly handle examples they previously got right. This is especially frustrating in production or user-facing systems, where a model suddenly failing on known-good cases can be more disruptive than missing new ones.
 
-Catastrophic forgetting is well-studied in **continual learning** ([French, 1999](https://www.sciencedirect.com/science/article/abs/pii/S0893608099000672)), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively penalizing regression* during ordinary training.
+Catastrophic forgetting is well-studied in **continual learning** ([French, 1999](https://pubmed.ncbi.nlm.nih.gov/10322466/)), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively penalizing regression* during ordinary training.
 
 ---
 
