@@ -4,7 +4,7 @@
 
 A well-known problem in machine learning is **regression**: as models update, they sometimes "forget" how to correctly handle examples they previously got right. This is especially frustrating in production or user-facing systems, where a model suddenly failing on known-good cases can be more disruptive than missing new ones.
 
-Catastrophic forgetting is well-studied in **continual learning** ([French, 1999](https://pubmed.ncbi.nlm.nih.gov/10322466/)), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively penalizing regression* during ordinary training.
+Catastrophic forgetting is well-studied in **continual learning** (French, 1999), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively penalizing regression* during ordinary training.
 
 ---
 
@@ -16,49 +16,49 @@ We compare three strategies:
 The usual approach—minimize training loss with no explicit mechanism to prevent forgetting.
 
 **2. Forgetting-Penalized Training**  
-Inspired by continual learning (e.g., [Kirkpatrick et al., 2017, EWC](https://www.pnas.org/doi/10.1073/pnas.1611835114)), we add a penalty term whenever an example previously classified correctly becomes incorrect. This discourages the model from "unlearning" prior knowledge, but does not completely prevent all changes.
+Inspired by continual learning methods like Elastic Weight Consolidation (Kirkpatrick et al., 2017), this adds a penalty whenever an example previously classified correctly becomes incorrect. It discourages "unlearning," but does not eliminate all changes.
 
 **3. Soft Pareto-Penalized Training**  
-Building on the idea of Pareto improvements and recent work in multi-objective optimization (e.g., [Lin et al., 2019](https://arxiv.org/abs/1912.12854) and [Navon et al., 2020](https://arxiv.org/abs/2010.04104)), we penalize *any* increase in per-example loss, not just flips from correct to incorrect. This enforces a softer but broader form of "do no harm" across all examples, not just those at the margin.
+Drawing on Pareto-improvement ideas and recent multi-task optimization research (Lin et al., 2019; Navon et al., 2021), this method penalizes *any* increase in per-example loss—not just flips from correct to incorrect. It enforces a softer, broader "do no harm" principle across all training examples.
 
 ---
 
 ## Experiment
 
-On the Adult income dataset, we ran all three methods with identical architectures, tuning penalties and including a warmup phase so that penalties only activate after the model has stabilized.
+On the Adult income dataset, we trained all three methods with identical neural network architectures. Penalties were introduced after a warmup period, allowing the model to stabilize before beginning to penalize regressions.
 
 ---
 
 ## Results
 
-| Method            | Total Forgetting | Final Train Acc | Final Val Acc |
-|-------------------|------------------|-----------------|---------------|
-| Baseline          | 5668             | 0.794           | 0.788         |
-| Forgetting Pen.   | 122              | 0.759           | 0.760         |
-| Soft Pareto       | 290              | 0.786           | 0.783         |
+| Method           | Total Forgetting | Final Train Acc | Final Val Acc |
+|------------------|------------------|-----------------|---------------|
+| **Baseline**     | 5668             | 0.794           | 0.788         |
+| **Forgetting Pen.** | 122          | 0.759           | 0.760         |
+| **Soft Pareto**  | 290              | 0.786           | 0.783         |
 
-- Both penalized approaches **dramatically reduced forgetting**—by an order of magnitude or more—compared to baseline.
-- **Soft Pareto** achieved a strong balance: low forgetting with almost no loss in accuracy.
-- **Forgetting-penalized** (hard) kept forgetting even lower, but at a greater cost to overall accuracy.
-- Standard training had the highest accuracy, but at the expense of frequent forgetting/regression.
+- Both penalized methods reduced forgetting by an order of magnitude **compared to baseline**.
+- **Soft Pareto** provided a strong trade-off: low forgetting with minimal accuracy loss.
+- **Forgetting-Penalized** achieved the lowest forgetting, but at a more significant cost to accuracy.
+- **Baseline training** delivered the highest accuracy—but experienced frequent regression.
 
 ---
 
 ## Contribution
 
-While regularization and continual learning are established topics, our work demonstrates that **lightweight, penalty-based methods** for "locking in" learned cases during standard training can sharply reduce regression *without major tradeoffs in accuracy*. The soft Pareto loss is a practical, easily-implemented variant that achieves a good balance between progress and stability.
+While regularization and continual learning are well-established, our work shows that **simple, lightweight penalty-based mechanisms**—added to ordinary training—can greatly reduce regression *without substantial accuracy loss*. The **Soft Pareto loss** is especially practical, implementing a “do no harm” bias that’s easy to integrate.
 
 ---
 
-## When Is This Useful?
+## Where It Matters
 
-- **Production/mission-critical ML**: Where regression on known-good cases is unacceptable.
-- **Human-facing models**: Where users notice and care when predictions flip on previously solved cases.
-- **Medical, fraud, or compliance applications**: Where “do no harm” is a central requirement.
-- **Curriculum learning and staged training**: Where it is important to consolidate learning on early/easy cases as new data is introduced.
+- **Production-grade systems** where regression on known-good cases is unacceptable.
+- **Human-facing models** where consistency matters to user trust.
+- **High-stakes domains** like medical, fraud detection, or compliance.
+- **Curriculum or staged learning setups**, where early learning shouldn't be overwritten by later stages.
 
 ---
 
 ## Summary
 
-If you care about avoiding regression on learned examples, simple penalty terms (either for forgetting or for loss increases) can be effective, easy to add to existing training loops, and provide a practical "Pareto-improvement bias" in ordinary supervised learning.
+If maintaining correctness on previously learned examples matters—even under normal supervised training—then adding **penalty terms** for forgetting or loss regression is effective, easy to implement, and provides a natural “Pareto bias” in practice.
