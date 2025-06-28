@@ -19,7 +19,7 @@ The usual approach—minimize training loss with no explicit mechanism to preven
 Inspired by continual learning (e.g., [Kirkpatrick et al., 2017, EWC](https://www.pnas.org/doi/10.1073/pnas.1611835114)), we add a penalty term whenever an example previously classified correctly becomes incorrect. This discourages the model from "unlearning" prior knowledge, but does not completely prevent all changes.
 
 **3. Soft Pareto-Penalized Training**  
-Building on the idea of Pareto improvements and recent work in multi-objective optimization (e.g., [Navon et al., 2020](https://arxiv.org/abs/2006.04687)), we penalize *any* increase in per-example loss, not just flips from correct to incorrect. This enforces a softer but broader form of "do no harm" across all examples, not just those at the margin.
+Building on the idea of Pareto improvements and recent work in multi-objective optimization (e.g., [Navon et al., 2020](https://arxiv.org/abs/2010.04104)), we penalize *any* increase in per-example loss, not just flips from correct to incorrect. This enforces a softer but broader form of "do no harm" across all examples, not just those at the margin.
 
 ---
 
