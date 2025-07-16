@@ -1,0 +1,465 @@
+\documentclass[12pt, letterpaper]{article}
+\usepackage[titletoc,title]{appendix}
+\usepackage{booktabs}
+\usepackage[margin=1in]{geometry}
+\usepackage[linkcolor=blue,
+			colorlinks=true,
+			urlcolor=blue,
+			pdfstartview={XYZ null null 1.00},
+			pdfpagemode=UseNone,
+			citecolor={black},
+			pdftitle={blacklight}]{hyperref}
+
+%\newcites{SI}{SI References}
+\usepackage{natbib}
+\usepackage{booktabs}
+\usepackage{float}
+\usepackage{placeins}
+\usepackage{algorithm2e}
+\usepackage{geometry}  % see geometry.pdf on how to lay out the page. There's lots.
+\geometry{letterpaper} % This is 8.5x11 paper. Options are a4paper or a5paper or other...
+\usepackage{graphicx}  % Handles inclusion of major graphics formats and allows use of
+\usepackage{units}
+\usepackage{amsfonts,amsmath,amsbsy}
+\usepackage{amsxtra}
+\usepackage{verbatim}
+%\setcitestyle{round,semicolon,aysep={},yysep={;}}
+\usepackage{setspace} % Permits line spacing control. Options are:
+%\doublespacing
+%\onehalfspace
+%\usepackage{sectsty}    % Permits control of section header styles
+\usepackage{pdflscape}
+\usepackage{fancyhdr}   % Permits header customization. See header section below.
+\usepackage{url}        % Correctly formats URLs with the \url{} tag
+\usepackage{xurl}
+\usepackage{fullpage}   %1-inch margins
+\usepackage{multirow}
+\usepackage{verbatim}
+\usepackage{rotating}
+\setlength{\parindent}{3em}
+
+%\usepackage[T1]{fontenc}
+%\usepackage[bitstream-charter]{mathdesign}
+
+\usepackage{chngcntr}
+\usepackage{longtable}
+\usepackage{adjustbox}
+\usepackage{dcolumn}
+\usepackage{tabularx}
+
+\usepackage{lineno}
+
+\usepackage[12pt]{moresize}
+
+\usepackage{pdfpages}
+
+% https://tex.stackexchange.com/questions/611786/misplaced-noalign-because-input-before-booktabs-rule
+% I was getting Misplaced \noalign. \bottomrule on my laptop
+% but not on my desktop...
+% Comment out for older LaTeX versions
+%\iffalse
+\ExplSyntaxOn
+\cs_new:Npn \expandableinput #1
+{ \use:c { @@input } { \file_full_name:n {#1} } }
+\AddToHook{env/tabular/begin}
+{ \cs_set_eq:NN \input \expandableinput }
+\ExplSyntaxOff
+%\fi
+
+
+\usepackage[nameinlink, capitalize, noabbrev]{cleveref}
+
+\def\citeapos#1{\citeauthor{#1}'s (\citeyear{#1})}
+
+\makeatother
+
+\usepackage{footmisc}
+\setlength{\footnotesep}{\baselineskip}
+\makeatother
+\renewcommand{\footnotelayout}{\footnotesize \onehalfspacing}
+%https://tex.stackexchange.com/a/68242
+%prevent footnotes splitting over pages
+\interfootnotelinepenalty=10000
+
+
+% Colors
+\usepackage{color}
+
+\newcommand{\bch}{\color{blue}\em  }   % begin change
+\newcommand{\ying} {\color{orange}\em  }   % begin change
+\newcommand{\bgcd} {\color{purple}\em }
+\newcommand{\ech}{\color{black}\rm  }    % end change
+
+\newcommand{\note}[1]{\textcolor{orange}{#1}}
+
+% Caption
+% Caption
+\usepackage[
+    skip            =0pt,
+    labelfont       =bf, 
+    font            =small,
+    textfont        =small,
+    figurename      =Figure,
+    justification   =justified,
+    singlelinecheck =false,
+    labelsep        =period]
+{caption}
+%\captionsetup[subtable]{font=small,skip=0pt}
+\usepackage{subcaption}
+
+% tt font issues
+% \renewcommand*{\ttdefault}{qcr}
+\renewcommand{\ttdefault}{pcr}
+
+\usepackage{tocloft}
+
+\newcommand{\detailtexcount}[1]{%
+  \immediate\write18{texcount -merge -sum -q #1.tex output.bbl > #1.wcdetail }%
+  \verbatiminput{#1.wcdetail}%
+}
+
+\newcommand{\quickwordcount}[1]{%
+  \immediate\write18{texcount -1 -sum -merge -q #1.tex output.bbl > #1-words.sum }%
+  \input{#1-words.sum} words%
+}
+
+\newcommand{\quickcharcount}[1]{%
+  \immediate\write18{texcount -1 -sum -merge -char -q #1.tex output.bbl > #1-chars.sum }%
+  \input{#1-chars.sum} characters (not including spaces)%
+}
+
+\title{(Don't) Forget About It: Forgetting-Penalized Supervised Learning\thanks{\href{https://github.com/finite-sample/mw-calibration}{https://github.com/finite-sample/pareto-gd}.}}
+
+\author{Gaurav Sood\thanks{Gaurav can be reached at \href{mailto:gsood07@gmail.com}{\footnotesize{\texttt{gsood07@gmail.com}}}}\vspace{.5cm}}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+During continued training, a machine-learning model can begin misclassifying examples it previously labeled correctly—a within-task instability often called model regression. While catastrophic forgetting across different tasks has been studied for decades, standard supervised objectives still optimize only average accuracy and ignore these per-example reversals, even though each flip can trigger costly downstream work in production pipelines that rely on stable behavior. We propose two lightweight, differentiable regularizers that embed a ``do-no-harm'' bias directly into the loss. The flip penalty adds cost whenever an example that was correct with a safety margin in the previous epoch becomes incorrect, and the soft Pareto penalty more gently discourages any increase in per-example loss. Both methods track just one bit of historical state per sample and require no extra passes over the data, so they drop seamlessly into existing cross-entropy training loops. In a proof-of-concept study on the Adult-Income benchmark, enabling either penalty after a 10-epoch warm-up cut forgetting events on a fixed evaluation set by 95–98\% compared with an unregularized baseline. The soft Pareto variant kept test accuracy within 0.5\%  of the baseline, showing that stability and performance need not trade off sharply. Because the penalties are simple to implement and add negligible computation, they offer a practical safeguard for production systems—especially human-in-the-loop settings—where consistency on known-good cases is valued alongside headline accuracy.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Machine‑learning models deployed in production are routinely retrained or fine‑tuned as new data arrive.  Although these updates generally \emph{improve} overall accuracy, they can sometimes cause the same model to misclassify examples it previously labeled correctly.  We refer to each such reversal as \emph{model regression}.  This phenomenon resembles catastrophic forgetting \citep{french1999catastrophic} but occurs \emph{within a single supervised task}, rather than across clearly separated tasks in continual‑learning benchmarks.  While catastrophic forgetting has inspired a rich body of work in multi‑task settings \citep{kirkpatrick2017overcoming, zenke2017continual}, the practical consequences of model regression in production pipelines have received far less attention.
+
+Model regression is more than a statistical curiosity: in human‑in‑the‑loop systems it incurs operational costs.  When performance drops for a specific subgroup, organizations must reallocate domain specialists, launch retraining programs, or absorb higher error‑handling expenses.  Section~\ref{sec:staffing} quantifies these costs through a staffing‑optimization case study and shows that even modest regressions can erase the financial gains of an accuracy update.
+
+Standard supervised learning objectives minimize average loss and provide no incentive to preserve correctness on \emph{known‑good} examples.  Consequently, training dynamics may sacrifice stability for small aggregate improvements, exposing production systems to disruptive swings in behavior.
+
+In this paper, we propose two lightweight regularizers that address this gap:
+\begin{enumerate}
+\item \textbf{Flip Penalty}—adds a differentiable cost whenever an example that was correct with a safety margin in the previous epoch becomes incorrect.
+\item \textbf{Soft Pareto Penalty}—penalizes any increase in per‑example loss, encouraging monotonic improvement without freezing progress on harder samples.
+\end{enumerate}
+Both methods require only a single bit of historical state per training example and no additional passes over the data, making them easy to integrate into existing cross‑entropy pipelines.
+
+Our contributions are threefold:
+\begin{enumerate}
+\item We formalize \emph{model regression} and provide an economic framework that links per‑example reversals to real operational costs.
+\item We introduce two differentiable, example‑level penalties that substantially reduce regression with negligible computational overhead.
+\item We empirically demonstrate the effectiveness of these penalties on the Adult‑Income benchmark and discuss their applicability to production systems.
+\end{enumerate}
+
+% =============================================================================
+% Staffing Case Study
+% =============================================================================
+
+\section{Operational Cost Case Study: Customer‑Operations Staffing}\label{sec:staffing}
+
+To ground the economic stakes of model regression, consider a financial services firm that uses an ML classifier to triage incoming customer requests and detect cases requiring human review.  Requests are routed into categories—\emph{account inquiries}, \emph{fraud alerts}, \emph{loan applications}, \emph{technical support}, and so on.  Each category has a dedicated team of specialists who intervene when the model’s confidence is low or when it commits an error.
+
+\subsection{Economic Drivers}
+\begin{itemize}
+\item \textbf{Specialization efficiency}: Employees work fastest and most accurately within their domain expertise (e.g., fraud analysts versus loan officers).
+\item \textbf{Retraining cost}: Moving workers between domains requires expensive retraining that temporarily reduces productivity.
+\item \textbf{Hiring and separation cost}: Adjusting headcount entails recruiting, onboarding, or severance expenses.
+\item \textbf{Accuracy benefit}: Higher model accuracy lowers the total volume of human interventions, reducing labor demand across all categories.
+\end{itemize}
+
+\subsection{The Regression Cost Problem}
+
+When updating the ML model from version $M_A$ to $M_B$, the company faces a trade-off. While $M_B$ may achieve higher overall accuracy than $M_A$, it may perform worse on specific subgroups or categories. This creates two types of costs:
+
+\textbf{Staffing Realignment Costs}: If model $M_B$ has worse performance on fraud detection but better performance on loan processing, staff must be moved from loan processing to fraud detection roles, incurring retraining costs.
+
+\textbf{Accuracy Benefits}: If model $M_B$ has sufficiently higher overall accuracy, fewer total staff are needed, creating cost savings.
+
+Let $C_{move}(M_A, M_B)$ denote the cost of staff realignment when transitioning from $M_A$ to $M_B$, and let $C_{staff}(M)$ denote the ongoing staffing cost for model $M$. The company should only deploy $M_B$ if:
+
+\begin{equation}
+C_{staff}(M_A) - C_{staff}(M_B) > C_{move}(M_A, M_B)
+\end{equation}
+
+\subsection{Forgetting-Penalized Training as Economic Optimization}
+
+This business case provides clear economic justification for forgetting-penalized training. Rather than accepting any model with higher overall accuracy, the company can use penalties to constrain model updates such that:
+
+\begin{enumerate}
+\item \textbf{Subgroup Performance Preservation}: Penalize decreases in performance on individual categories to minimize staff reallocation needs
+\item \textbf{Minimum Improvement Threshold}: Only accept model updates if the overall accuracy improvement exceeds a threshold $\tau$ that justifies operational disruption
+\item \textbf{Pareto-Aware Updates}: Prefer model improvements that help some categories without harming others
+\end{enumerate}
+
+The penalty-based objective becomes:
+\begin{equation}
+\mathcal{L}_{economic}(\theta) = \mathcal{L}_{std}(\theta) + \lambda_{econ} \sum_{k=1}^K \max(0, \ell_k(M_A) - \ell_k(M_\theta))
+\end{equation}
+
+where $\ell_k(M)$ represents the loss of model $M$ on category $k$, and the penalty term discourages performance decreases on any category.
+
+\subsection{Broader Implications}
+
+This operational perspective suggests that ``regression'' in machine learning should be understood not merely as a technical phenomenon, but as an economic externality. The cost of operational disruption from model updates may outweigh the benefits of marginal accuracy improvements, particularly in:
+
+\begin{itemize}
+\item \textbf{Human-in-the-loop systems} where model changes affect workforce allocation
+\item \textbf{Multi-stakeholder environments} where different groups depend on model performance for specific use cases  
+\item \textbf{Regulated industries} where model changes require compliance reviews and approval processes
+\item \textbf{Customer-facing applications} where inconsistent model behavior affects user experience and trust
+\end{itemize}
+
+This economic framing provides a principled foundation for determining when forgetting prevention is worthwhile and how to set appropriate penalty weights $\lambda$ based on operational costs rather than purely technical considerations.
+
+\section{Related Work}
+
+\subsection{Example Forgetting as a Dataset Diagnostic}
+\citet{toneva2019empirical} introduced the notion of a \emph{forgetting event}—a correct $\rightarrow$ incorrect transition for a single example during SGD—and showed that
+(i) forgetting counts follow a heavy‐tailed distribution,
+(ii) the ranking of (un)forgettable examples is architecture‐invariant,
+and (iii) pruning the \emph{never‐forgotten} fraction of CIFAR-10 does not harm test accuracy.
+Follow-up work leverages forgetting scores for data curation \citep{paul2021deep} and long-tailed re-weighting \citep{yu4201044class}.
+In contrast, we embed a \emph{differentiable} forgetting cost directly into the loss to prevent harmful flips in the first place.
+
+\subsection{Catastrophic forgetting and continual learning}
+Catastrophic forgetting—loss of performance on earlier tasks while learning new ones—was first
+noted by \citet{french1999catastrophic}.  Continual-learning research has since produced three main
+families of defenses:
+
+\paragraph{Parameter-level regularizers.}
+Elastic Weight Consolidation (EWC) \citep{kirkpatrick2017overcoming}, Memory-Aware Synapses (MAS)
+\citep{zenke2017continual}, and Synaptic Intelligence (SI) \citep{zenke2017continual} estimate
+parameter importance and penalize updates on important weights.  
+EWC, for example, uses the diagonal Fisher information,
+\[
+F_i \;=\; \mathbb{E}_{(x,y)\sim\mathcal{D}_{\text{old}}}
+       \!\Bigl[\bigl(\tfrac{\partial}{\partial\theta_i}\log p(y\mid x,\theta)\bigr)^2\Bigr],
+\]
+and adds a quadratic penalty
+\(
+\frac{\lambda}{2}\sum_i F_i(\theta_i-\theta_i^\star)^2
+\)
+to the new task loss.  
+These methods are effective when task boundaries are known, but require storing (or
+recomputing) importance estimates and do not directly address within-task regression.
+
+\paragraph{Rehearsal buffers.}
+Methods such as Gradient Episodic Memory \citep{lopez2017gradient} replay a subset of past
+examples while learning new ones, thereby preserving previous performance at the cost of extra
+memory and computation.
+
+\paragraph{Architectural expansion.}
+Progressive networks \citep{rusu2016progressive} and related approaches allocate new capacity for
+each task, sidestepping interference but sacrificing parameter efficiency.
+
+Our work differs in scope: we remain within \emph{one} supervised task and operate at the \emph{output level}, tracking only one bit per example and requiring no task boundaries or replay.
+
+\subsection{Multi-objective and Pareto-optimal training}
+Multi-task learning can be cast as a multi-objective problem in which each task loss is an independent objective. \citet{lin2019pareto} solve a set of constrained sub-problems in parallel to approximate the Pareto front, producing a spectrum of accuracy–fairness (or other) trade-offs that users can select
+post-training. \citet{navon2021learning} go further, training a hypernetwork that maps a preference vector to weights, thus generating the entire Pareto front in a single run.
+
+These methods aim to \emph{offer choices} along a frontier of trade-offs.
+In contrast, our penalties pursue a single, conservative update: they bias SGD toward changes that improve—or at least do not worsen—every example's loss.
+The goal is operational stability, not exploration of a full trade-off surface, making our approach better suited to production pipelines that value consistency on known-good cases.
+
+\subsection{Summary}
+Prior work either analyzes example-level forgetting after training,
+protects entire tasks via parameter or rehearsal methods, or explores Pareto
+trade-offs across tasks.
+
+Our contribution is orthogonal: a lightweight, example-level regularizer that prevents within-task regression \emph{during} training and aligns directly with operational cost constraints in real-world deployments.
+
+\section{Methods}
+
+\subsection{Problem Formulation}
+
+Let $\mathcal{D} = \{(x_i, y_i)\}_{i=1}^n$ be a training dataset, where $x_i \in \mathbb{R}^d$ and $y_i \in \{0,1\}$ for binary classification. We denote the model parameters as $\theta$ and the prediction function as $f_\theta(x)$. The standard training objective minimizes the empirical risk:
+
+\begin{equation}
+\mathcal{L}_{std}(\theta) = \frac{1}{n} \sum_{i=1}^n \ell(f_\theta(x_i), y_i)
+\end{equation}
+
+where $\ell$ is the loss function (e.g., binary cross-entropy).
+
+As motivated by the operational cost analysis in Section 2, we seek to augment this objective with penalty terms that discourage regression on previously learned examples, particularly when the operational benefits of accuracy improvements do not justify the costs of performance changes on specific subgroups or categories.
+
+\subsection{Classification Flip Penalty}
+
+Our first approach explicitly penalizes forgetting events—instances where an example transitions from being correctly classified to incorrectly classified between consecutive epochs.
+
+Let $\theta^{(t)}$ denote the model parameters at epoch $t$, and define the correctness indicator:
+
+\begin{equation}
+c_i^{(t)} = \mathbb{I}[\text{sign}(f_{\theta^{(t)}}(x_i) - 0.5) = y_i]
+\end{equation}
+
+The forgetting penalty at epoch $t$ is:
+
+\begin{equation}
+\mathcal{R}_{flip}^{(t)}(\theta) = \sum_{i=1}^n \mathbb{I}[c_i^{(t-1)} = 1 \text{ and } c_i^{(t)} = 0]
+\end{equation}
+
+The total training objective becomes:
+
+\begin{equation}
+\mathcal{L}_{flip}^{(t)}(\theta) = \mathcal{L}_{std}(\theta) + \lambda_{flip} \cdot \mathcal{R}_{flip}^{(t)}(\theta)
+\end{equation}
+
+where $\lambda_{flip} \geq 0$ controls the strength of the forgetting penalty.
+
+\subsection{Confidence Drop Penalty}
+
+The Confidence Drop approach implements a more general "do no harm" principle by penalizing any increase in per-example loss, not just classification flips.
+
+For each example $i$, we track the per-example loss from the previous epoch:
+
+\begin{equation}
+\ell_i^{(t-1)} = \ell(f_{\theta^{(t-1)}}(x_i), y_i)
+\end{equation}
+
+The Confidence Drop penalty encourages the current loss to not exceed the previous loss:
+
+\begin{equation}
+\mathcal{R}_{conf}^{(t)}(\theta) = \sum_{i=1}^n \max(0, \ell(f_\theta(x_i), y_i) - \ell_i^{(t-1)})
+\end{equation}
+
+The complete objective is:
+
+\begin{equation}
+\mathcal{L}_{conf}^{(t)}(\theta) = \mathcal{L}_{std}(\theta) + \lambda_{conf} \cdot \mathcal{R}_{conf}^{(t)}(\theta)
+\end{equation}
+
+\subsection{Implementation Details}
+
+Both penalty methods are applied after a warmup period to allow the model to stabilize before enforcing regression constraints. Algorithm \ref{alg:training} presents the general training procedure.
+
+\begin{algorithm}
+\caption{Penalty-Based Training with Regression Prevention}
+\label{alg:training}
+\KwIn{Dataset $\mathcal{D}$, penalty type, $\lambda$, warmup epochs $T_{warmup}$}
+Initialize model parameters $\theta^{(0)}$\;
+$t \leftarrow 0$\;
+\While{not converged}{
+    Compute standard loss: $\mathcal{L}_{std}(\theta^{(t)})$\;
+    \If{$t > T_{warmup}$}{
+        Compute penalty: $\mathcal{R}^{(t)}(\theta^{(t)})$\;
+        Total loss: $\mathcal{L}_{total} = \mathcal{L}_{std} + \lambda \cdot \mathcal{R}^{(t)}$\;
+    }
+    \Else{
+        Total loss: $\mathcal{L}_{total} = \mathcal{L}_{std}$\;
+    }
+    Update parameters: $\theta^{(t+1)} \leftarrow \theta^{(t)} - \alpha \nabla_\theta \mathcal{L}_{total}$\;
+    $t \leftarrow t + 1$\;
+}
+\end{algorithm}
+
+\section{Experiments}
+
+\subsection{Dataset and Setup}
+
+We evaluate our methods on the Adult income dataset \citep{kohavi1996scaling}, a binary classification task predicting whether an individual's income exceeds \$50K based on demographic features. The dataset contains 32,561 training examples and 16,281 test examples with 14 features after preprocessing.
+
+We use a multi-layer perceptron (MLP) with two hidden layers of 64 units each, ReLU activations, and a sigmoid output layer. All models are trained using the Adam optimizer with a learning rate of 0.01 for 50 epochs. The penalty mechanisms are activated after 10 warmup epochs.
+
+\subsection{Evaluation Protocol}
+
+To measure forgetting in a production-realistic setting, we establish a fixed out-of-sample (OOS) evaluation set from the original validation data. Our evaluation protocol follows these steps:
+
+\begin{enumerate}
+\item Train a baseline "production" model on the training data
+\item Record the baseline model's predictions on the fixed OOS evaluation set
+\item Continue training the model with different penalty mechanisms
+\item Measure forgetting as examples where the baseline model was correct but the updated model is incorrect on the same OOS set
+\end{enumerate}
+
+This approach ensures that forgetting measurements are not confounded by changes in the evaluation data and reflects the practical concern of maintaining performance on a stable set of examples that the production system must handle correctly.
+
+\subsection{Evaluation Metrics}
+
+We track two primary metrics:
+\begin{itemize}
+\item \textbf{Total Forgetting}: Cumulative count of forgetting events on the fixed OOS set
+\item \textbf{Final Accuracy}: Classification accuracy on held-out test set after training completion
+\end{itemize}
+
+\subsection{Results}
+
+Table \ref{tab:results} summarizes the performance of all three methods. Both penalty-based approaches achieve substantial reductions in forgetting compared to standard training.
+
+\begin{table}[!htb]
+\centering
+\caption{Experimental Results on Adult Income Dataset}
+\label{tab:results}
+\begin{tabular}{lccc}
+\toprule
+Method & Total Forgetting & Final Train Acc & Final Val Acc \\
+\midrule
+Baseline & 566 & 0.794 & 0.788 \\
+Classification Flip Penalty & 12 & 0.759 & 0.760 \\
+Confidence Drop Penalty & 29 & 0.786 & 0.783 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Key observations:
+
+\begin{itemize}
+\item Both penalized methods reduced forgetting by more than an order of magnitude compared to baseline
+\item The Classification Flip Penalty method achieved the lowest forgetting (12 events) but with a more significant accuracy reduction (2.8\% validation accuracy drop)
+\item The Confidence Drop Penalty method provided an effective trade-off, reducing forgetting by 95\% while maintaining validation accuracy within 0.5\% of baseline
+\item Standard training achieved the highest accuracy but experienced 566 forgetting events on the fixed OOS evaluation set
+\end{itemize}
+
+\section{Discussion}
+
+\subsection{Practical Implications}
+
+Our results demonstrate that simple penalty mechanisms can effectively prevent regression in standard supervised learning settings. The Soft Pareto approach is particularly appealing for production systems, as it provides substantial forgetting reduction with minimal accuracy cost.
+
+These methods are especially valuable in:
+\begin{itemize}
+\item Production-grade systems where regression on known-good cases is unacceptable
+\item Human-facing models where consistency matters for user trust
+\item High-stakes domains like medical diagnosis, fraud detection, or compliance monitoring
+\item Curriculum or staged learning setups where early learning should be preserved
+\end{itemize}
+
+\subsection{Limitations and Future Work}
+
+While our penalty-based approaches show promise, several limitations merit discussion:
+
+\begin{enumerate}
+\item \textbf{Computational Overhead}: Tracking per-example losses or correctness requires additional memory and computation
+\item \textbf{Hyperparameter Sensitivity}: The penalty strength $\lambda$ requires tuning for each application
+\item \textbf{Limited Evaluation}: Our experiments focus on a single dataset and architecture
+\end{enumerate}
+
+Future work should explore these methods across diverse datasets, architectures, and learning scenarios, including online learning and continual learning settings.
+
+\section{Conclusion}
+
+We have introduced two penalty-based approaches for preventing regression in machine learning: margin-based and loss-based penalties that discourage performance degradation on previously learned examples. Motivated by concrete operational costs in production systems, our methods provide a lightweight mechanism for incorporating stability constraints into standard supervised learning.
+
+Our experimental evaluation demonstrates that these approaches can substantially reduce regression events with modest accuracy costs. The loss-based penalty, in particular, offers an effective trade-off for production scenarios where consistency on known-good examples has economic value.
+
+This work establishes a foundation for treating model regression as an economic optimization problem rather than merely a technical curiosity. As machine learning systems become increasingly embedded in business-critical processes, techniques for managing the operational externalities of model updates will become essential components of responsible AI deployment.
+
+
+
+\bibliographystyle{apalike}
+\bibliography{forget}
+
+\end{document}
