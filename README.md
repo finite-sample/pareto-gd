@@ -1,4 +1,4 @@
-# Preventing Regression in Machine Learning: Forgetting-Penalized and Pareto-Aware Training
+# (Don't) Forget About It: Forgetting-Penalized Supervised Learning
 
 ## Background
 
