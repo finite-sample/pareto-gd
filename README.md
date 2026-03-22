@@ -1,5 +1,36 @@
 # (Don't) Forget About It: Forgetting-Penalized Supervised Learning
 
+## TL;DR
+
+Constraint-based methods (projected GD, BCWI) vastly outperform penalty-based methods for preventing model regression. Mean NFR ~0.008 vs ~0.03 across 5 datasets.
+
+---
+
+## Results
+
+| Method | Mean NFR |
+|--------|----------|
+| projected_gd | 0.008 |
+| bcwi | 0.009 |
+| fixed_anchor | 0.029 |
+| selective_distill | 0.029 |
+| confidence_drop | 0.032 |
+| baseline | 0.038 |
+
+### Key Findings
+
+1. **Constraint-based methods vastly outperform penalty-based methods**
+   - projected_gd and bcwi achieve NFR < 0.01 while maintaining accuracy
+   - Penalty methods plateau at NFR ~0.015-0.03
+
+2. **Training-time constraints beat post-hoc interpolation** (3/5 datasets)
+   - projected_gd explores full feasible region via iterative projection
+   - bcwi is restricted to 1D line segment between incumbent and candidate
+
+3. **All methods beat baseline** - baseline always ranks last (rank 6)
+
+---
+
 ## Background
 
 A well-known problem in machine learning is **model regression**: as models update, they sometimes "forget" how to correctly handle examples they previously got right. This is especially frustrating in production or user-facing systems, where a model suddenly failing on known-good cases can be more disruptive than missing new ones.
@@ -98,63 +129,9 @@ Outputs:
 
 ---
 
-## Results
-
-### Method Rankings
-
-Methods ranked by best NFR achieved while maintaining accuracy within 1% of baseline:
-
-| Method | Avg Rank | #1 Wins | Best On |
-|--------|----------|---------|---------|
-| **projected_gd** | **1.40** | **3** | bank, diabetes, spambase |
-| bcwi | 1.60 | 2 | adult, credit |
-| fixed_anchor | 3.40 | 0 | - |
-| selective_distill | 4.20 | 0 | - |
-| confidence_drop | 4.40 | 0 | - |
-| baseline | 6.00 | 0 | - |
-
-### Best NFR Achieved (maintaining ≥99% baseline accuracy)
-
-| Dataset | projected_gd | bcwi | fixed_anchor | selective_distill | confidence_drop | baseline |
-|---------|--------------|------|--------------|-------------------|-----------------|----------|
-| Adult | 0.0003 | 0.0000 | 0.0303 | 0.0309 | 0.0329 | 0.0413 |
-| Bank | 0.0001 | 0.0002 | 0.0270 | 0.0276 | 0.0259 | 0.0317 |
-| Credit | 0.0013 | 0.0008 | 0.0161 | 0.0163 | 0.0209 | 0.0235 |
-| Diabetes | 0.0288 | 0.0347 | 0.0555 | 0.0520 | 0.0663 | 0.0732 |
-| Spambase | 0.0073 | 0.0099 | 0.0145 | 0.0160 | 0.0153 | 0.0179 |
-
-### Key Findings
-
-1. **Constraint-based methods vastly outperform penalty-based methods**
-   - projected_gd and bcwi achieve NFR < 0.01 while maintaining accuracy
-   - Penalty methods plateau at NFR ~0.015-0.03
-
-2. **Training-time constraints beat post-hoc interpolation** (3/5 datasets)
-   - projected_gd explores full feasible region via iterative projection
-   - bcwi is restricted to 1D line segment between incumbent and candidate
-
-3. **All methods beat baseline** - baseline always ranks last (rank 6)
-
----
-
-## Contribution
-
-We show that **constraint-based methods** (projected gradient descent, weight interpolation) are substantially more effective at preventing model regression than penalty-based methods. Projected GD achieves the best NFR-accuracy trade-off by exploring the full feasible region, while BCWI offers a simpler post-hoc alternative. Penalty-based methods provide some benefit but plateau at higher NFR values.
-
----
-
 ## Where It Matters
 
 - **Production-grade systems** where regression on known-good cases is unacceptable.
 - **Human-facing models** where consistency matters to user trust.
 - **High-stakes domains** like medical, fraud detection, or compliance.
 - **Model update pipelines** where backwards compatibility is required.
-
----
-
-## Summary
-
-For preventing model regression during supervised learning updates:
-- **Best overall**: Projected GD with NFR constraints
-- **Simplest effective**: BCWI post-hoc interpolation
-- **Penalty methods**: Some benefit, but fundamentally limited
