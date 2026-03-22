@@ -139,7 +139,7 @@
 \maketitle
 
 \begin{abstract}
-During continued training, a machine-learning model can begin misclassifying examples it previously labeled correctly—a within-task instability often called model regression. While catastrophic forgetting across different tasks has been studied for decades, standard supervised objectives still optimize only average accuracy and ignore these per-example reversals, even though each flip can trigger costly downstream work in production pipelines that rely on stable behavior. We propose two lightweight, differentiable regularizers that embed a ``do-no-harm'' bias directly into the loss. The flip penalty adds cost whenever an example that was correct with a safety margin in the previous epoch becomes incorrect, and the soft Pareto penalty more gently discourages any increase in per-example loss. Both methods track just one bit of historical state per sample and require no extra passes over the data, so they drop seamlessly into existing cross-entropy training loops. In a proof-of-concept study on the Adult-Income benchmark, enabling either penalty after a 10-epoch warm-up cut forgetting events on a fixed evaluation set by 95–98\% compared with an unregularized baseline. The soft Pareto variant kept test accuracy within 0.5\%  of the baseline, showing that stability and performance need not trade off sharply. Because the penalties are simple to implement and add negligible computation, they offer a practical safeguard for production systems—especially human-in-the-loop settings—where consistency on known-good cases is valued alongside headline accuracy.
+During continued training, a machine-learning model can begin misclassifying examples it previously labeled correctly—a within-task instability often called model regression. While catastrophic forgetting across different tasks has been studied for decades, standard supervised objectives still optimize only average accuracy and ignore these per-example reversals, even though each flip can trigger costly downstream work in production pipelines that rely on stable behavior. We compare six methods for preventing model regression: three penalty-based approaches (confidence drop, fixed anchor, selective distillation), two constraint-based approaches (projected gradient descent, backwards compatible weight interpolation), and a standard baseline. In comprehensive experiments across five benchmark datasets with 10 random splits each, we find that constraint-based methods vastly outperform penalty-based methods. Projected gradient descent with Negative Flip Rate (NFR) constraints achieves the best trade-off, winning on 3 of 5 datasets by exploring the full feasible region through iterative projection. Post-hoc weight interpolation (BCWI) is competitive and simpler, winning on 2 datasets. Penalty-based methods provide some benefit over baseline but plateau at higher NFR values. These findings establish that training-time NFR constraints are more effective than penalty-based regularization for preventing model regression.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -150,18 +150,21 @@ Model regression is more than a statistical curiosity: in human‑in‑the‑loo
 
 Standard supervised learning objectives minimize average loss and provide no incentive to preserve correctness on \emph{known‑good} examples.  Consequently, training dynamics may sacrifice stability for small aggregate improvements, exposing production systems to disruptive swings in behavior.
 
-In this paper, we propose two lightweight regularizers that address this gap:
+In this paper, we compare six methods for preventing model regression:
 \begin{enumerate}
-\item \textbf{Flip Penalty}—adds a differentiable cost whenever an example that was correct with a safety margin in the previous epoch becomes incorrect.
-\item \textbf{Soft Pareto Penalty}—penalizes any increase in per‑example loss, encouraging monotonic improvement without freezing progress on harder samples.
+\item \textbf{Baseline}—standard ERM with no regression prevention.
+\item \textbf{Confidence Drop Penalty}—penalizes any per-example loss increase vs the previous epoch.
+\item \textbf{Fixed Anchor Penalty}—penalizes when candidate loss exceeds incumbent loss on an anchor set.
+\item \textbf{Selective Distillation}—distills to incumbent predictions on an anchor set.
+\item \textbf{Projected Gradient Descent}—trains with ERM, then projects to NFR $\leq \varepsilon$ after each epoch.
+\item \textbf{Backwards Compatible Weight Interpolation (BCWI)}—post-hoc interpolation between incumbent and candidate weights.
 \end{enumerate}
-Both methods require only a single bit of historical state per training example and no additional passes over the data, making them easy to integrate into existing cross‑entropy pipelines.
 
 Our contributions are threefold:
 \begin{enumerate}
 \item We formalize \emph{model regression} and provide an economic framework that links per‑example reversals to real operational costs.
-\item We introduce two differentiable, example‑level penalties that substantially reduce regression with negligible computational overhead.
-\item We empirically demonstrate the effectiveness of these penalties on the Adult‑Income benchmark and discuss their applicability to production systems.
+\item We systematically compare six methods spanning penalty-based, constraint-based, and post-hoc approaches.
+\item In comprehensive experiments across five datasets with 10 splits each, we demonstrate that constraint-based methods (projected GD, BCWI) substantially outperform penalty-based methods.
 \end{enumerate}
 
 % =============================================================================
@@ -342,9 +345,63 @@ The complete objective is:
 \mathcal{L}_{conf}^{(t)}(\theta) = \mathcal{L}_{std}(\theta) + \lambda_{conf} \cdot \mathcal{R}_{conf}^{(t)}(\theta)
 \end{equation}
 
+\subsection{Fixed Anchor Penalty}
+
+The Fixed Anchor approach uses the incumbent model's loss as a fixed target on an anchor set. For each example in the anchor set where the incumbent was correct, we penalize when the candidate's loss exceeds the incumbent's loss:
+
+\begin{equation}
+\mathcal{R}_{anchor}(\theta) = \sum_{i \in \mathcal{A}} \max(0, \ell(f_\theta(x_i), y_i) - \ell(f_{\theta_{inc}}(x_i), y_i))
+\end{equation}
+
+where $\mathcal{A}$ is the anchor set (examples where the incumbent was correct) and $\theta_{inc}$ are the incumbent model parameters.
+
+\subsection{Selective Distillation}
+
+Selective Distillation distills the candidate model to match the incumbent's predictions on examples where the incumbent was correct. Using soft targets from the incumbent:
+
+\begin{equation}
+\mathcal{R}_{distill}(\theta) = \sum_{i \in \mathcal{A}} \text{KL}(p_{inc}(x_i) \| p_\theta(x_i))
+\end{equation}
+
+where $p_{inc}(x_i) = f_{\theta_{inc}}(x_i)$ is the incumbent's predicted probability.
+
+\subsection{Projected Gradient Descent}
+
+Projected GD takes a fundamentally different approach: instead of adding penalties, it enforces the NFR constraint directly. The algorithm initializes from the incumbent and, after each gradient step, projects back to the feasible region where NFR $\leq \varepsilon$:
+
+\begin{algorithm}
+\caption{Projected Gradient Descent for NFR Constraint}
+\label{alg:projected}
+\KwIn{Incumbent $\theta_{inc}$, target NFR $\varepsilon$, validation set}
+Initialize $\theta^{(0)} \leftarrow \theta_{inc}$\;
+\For{epoch $t = 1, \ldots, T$}{
+    $\theta' \leftarrow \theta^{(t-1)} - \alpha \nabla_\theta \mathcal{L}_{std}(\theta^{(t-1)})$ \tcp*{Gradient step}
+    Compute NFR$(\theta')$ on validation set\;
+    \If{NFR$(\theta') > \varepsilon$}{
+        Find $\beta^*$ via binary search such that NFR$(\beta^* \theta_{inc} + (1-\beta^*)\theta') = \varepsilon$\;
+        $\theta^{(t)} \leftarrow \beta^* \theta_{inc} + (1-\beta^*) \theta'$\;
+    }
+    \Else{
+        $\theta^{(t)} \leftarrow \theta'$\;
+    }
+}
+\end{algorithm}
+
+This allows the model to explore the full feasible region through iterative projection.
+
+\subsection{Backwards Compatible Weight Interpolation (BCWI)}
+
+BCWI is a post-hoc approach that does not modify training. It first trains a candidate model via standard ERM, then finds an interpolation weight $\alpha$ such that the interpolated model achieves the target NFR:
+
+\begin{equation}
+\theta_{bcwi} = \alpha \cdot \theta_{inc} + (1-\alpha) \cdot \theta_{cand}
+\end{equation}
+
+Binary search finds the smallest $\alpha$ (closest to the candidate) such that NFR$(\theta_{bcwi}) \leq \varepsilon$. BCWI is simpler than projected GD but restricted to the 1D line segment between incumbent and candidate.
+
 \subsection{Implementation Details}
 
-Both penalty methods are applied after a warmup period to allow the model to stabilize before enforcing regression constraints. Algorithm \ref{alg:training} presents the general training procedure.
+Penalty methods are applied after a warmup period to allow the model to stabilize before enforcing regression constraints. Algorithm \ref{alg:training} presents the general training procedure for penalty-based methods.
 
 \begin{algorithm}
 \caption{Penalty-Based Training with Regression Prevention}
@@ -368,94 +425,186 @@ $t \leftarrow 0$\;
 
 \section{Experiments}
 
-\subsection{Dataset and Setup}
+\subsection{Datasets}
 
-We evaluate our methods on the Adult income dataset \citep{kohavi1996scaling}, a binary classification task predicting whether an individual's income exceeds \$50K based on demographic features. The dataset contains 32,561 training examples and 16,281 test examples with 14 features after preprocessing.
-
-We use a multi-layer perceptron (MLP) with two hidden layers of 64 units each, ReLU activations, and a sigmoid output layer. All models are trained using the Adam optimizer with a learning rate of 0.01 for 50 epochs. The penalty mechanisms are activated after 10 warmup epochs.
-
-\subsection{Evaluation Protocol}
-
-To measure forgetting in a production-realistic setting, we establish a fixed out-of-sample (OOS) evaluation set from the original validation data. Our evaluation protocol follows these steps:
-
-\begin{enumerate}
-\item Train a baseline "production" model on the training data
-\item Record the baseline model's predictions on the fixed OOS evaluation set
-\item Continue training the model with different penalty mechanisms
-\item Measure forgetting as examples where the baseline model was correct but the updated model is incorrect on the same OOS set
-\end{enumerate}
-
-This approach ensures that forgetting measurements are not confounded by changes in the evaluation data and reflects the practical concern of maintaining performance on a stable set of examples that the production system must handle correctly.
-
-\subsection{Evaluation Metrics}
-
-We track two primary metrics:
-\begin{itemize}
-\item \textbf{Total Forgetting}: Cumulative count of forgetting events on the fixed OOS set
-\item \textbf{Final Accuracy}: Classification accuracy on held-out test set after training completion
-\end{itemize}
-
-\subsection{Results}
-
-Table \ref{tab:results} summarizes the performance of all three methods. Both penalty-based approaches achieve substantial reductions in forgetting compared to standard training.
+We evaluate all methods on five binary classification datasets from OpenML:
 
 \begin{table}[!htb]
 \centering
-\caption{Experimental Results on Adult Income Dataset}
-\label{tab:results}
-\begin{tabular}{lccc}
+\caption{Dataset Statistics}
+\label{tab:datasets}
+\begin{tabular}{lrrrl}
 \toprule
-Method & Total Forgetting & Final Train Acc & Final Val Acc \\
+Dataset & Train & Test & Features & Task \\
 \midrule
-Baseline & 566 & 0.794 & 0.788 \\
-Classification Flip Penalty & 12 & 0.759 & 0.760 \\
-Confidence Drop Penalty & 29 & 0.786 & 0.783 \\
+Adult & 32,561 & 16,281 & 105 & Income prediction \\
+Bank & 31,647 & 13,564 & 51 & Marketing response \\
+Credit & 21,000 & 9,000 & 23 & Default prediction \\
+Diabetes & 537 & 231 & 8 & Health outcome \\
+Spambase & 3,220 & 1,381 & 57 & Spam detection \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+We use a multi-layer perceptron (MLP) with two hidden layers of 64 units each, ReLU activations, and a sigmoid output layer. All models are trained using the Adam optimizer with a learning rate of 0.001.
+
+\subsection{Experimental Protocol}
+
+For each dataset, we run 10 random train/validation/test splits. Each split:
+\begin{enumerate}
+\item Trains an \emph{incumbent} model on the ``old'' subset (1/3 of training data)
+\item Trains a \emph{candidate} model on the full training data using each method
+\item Evaluates on a held-out test set
+\end{enumerate}
+
+For penalty-based methods (confidence drop, fixed anchor, selective distillation), we sweep penalty strength $\lambda \in \{0.0, 0.5, 1.0, 2.0, 4.0, 8.0\}$ with 10 warmup epochs. For constraint-based methods (projected GD, BCWI), we sweep NFR targets $\varepsilon \in \{0.0, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03\}$.
+
+\subsection{Evaluation Metrics}
+
+We measure:
+\begin{itemize}
+\item \textbf{Negative Flip Rate (NFR)}: Fraction of examples where incumbent was correct but candidate is incorrect
+\item \textbf{Accuracy}: Classification accuracy on held-out test set
+\end{itemize}
+
+Methods are ranked by the lowest NFR achieved while maintaining accuracy within 1\% of the baseline.
+
+\subsection{Results}
+
+Table \ref{tab:rankings} shows method rankings across all datasets. Projected GD and BCWI consistently outperform penalty-based methods.
+
+\begin{table}[!htb]
+\centering
+\caption{Method Rankings Across Datasets (lower rank = better)}
+\label{tab:rankings}
+\begin{tabular}{lcccccc}
+\toprule
+Dataset & 1st & 2nd & 3rd & 4th & 5th & 6th \\
+\midrule
+Adult & bcwi & proj\_gd & fixed\_anc & sel\_dist & conf\_drop & baseline \\
+Bank & proj\_gd & bcwi & conf\_drop & fixed\_anc & sel\_dist & baseline \\
+Credit & bcwi & proj\_gd & fixed\_anc & sel\_dist & conf\_drop & baseline \\
+Diabetes & proj\_gd & bcwi & sel\_dist & fixed\_anc & conf\_drop & baseline \\
+Spambase & proj\_gd & bcwi & fixed\_anc & conf\_drop & sel\_dist & baseline \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[!htb]
+\centering
+\caption{Average Rank and Win Count}
+\label{tab:avgrank}
+\begin{tabular}{lcc}
+\toprule
+Method & Avg Rank & \#1 Wins \\
+\midrule
+projected\_gd & 1.40 & 3 \\
+bcwi & 1.60 & 2 \\
+fixed\_anchor & 3.40 & 0 \\
+selective\_distill & 4.20 & 0 \\
+confidence\_drop & 4.40 & 0 \\
+baseline & 6.00 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table \ref{tab:bestnfr} shows the best NFR achieved by each method while maintaining accuracy within 1\% of baseline.
+
+\begin{table}[!htb]
+\centering
+\caption{Best NFR Achieved (maintaining $\geq$99\% baseline accuracy)}
+\label{tab:bestnfr}
+\begin{tabular}{lcccccc}
+\toprule
+Dataset & proj\_gd & bcwi & fixed\_anc & sel\_dist & conf\_drop & baseline \\
+\midrule
+Adult & 0.0003 & 0.0000 & 0.0303 & 0.0309 & 0.0329 & 0.0413 \\
+Bank & 0.0001 & 0.0002 & 0.0270 & 0.0276 & 0.0259 & 0.0317 \\
+Credit & 0.0013 & 0.0008 & 0.0161 & 0.0163 & 0.0209 & 0.0235 \\
+Diabetes & 0.0288 & 0.0347 & 0.0555 & 0.0520 & 0.0663 & 0.0732 \\
+Spambase & 0.0073 & 0.0099 & 0.0145 & 0.0160 & 0.0153 & 0.0179 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Figure \ref{fig:pareto} shows the Pareto frontiers across all datasets.
+
+\begin{figure}[!htb]
+\centering
+\includegraphics[width=\textwidth]{../figs/all_datasets_pareto.pdf}
+\caption{Pareto frontiers (Error Rate vs NFR) for all methods across five datasets. Constraint-based methods (projected\_gd, bcwi) consistently achieve lower NFR at matched accuracy.}
+\label{fig:pareto}
+\end{figure}
+
 Key observations:
 
 \begin{itemize}
-\item Both penalized methods reduced forgetting by more than an order of magnitude compared to baseline
-\item The Classification Flip Penalty method achieved the lowest forgetting (12 events) but with a more significant accuracy reduction (2.8\% validation accuracy drop)
-\item The Confidence Drop Penalty method provided an effective trade-off, reducing forgetting by 95\% while maintaining validation accuracy within 0.5\% of baseline
-\item Standard training achieved the highest accuracy but experienced 566 forgetting events on the fixed OOS evaluation set
+\item Constraint-based methods (projected GD, BCWI) achieve NFR $<$ 0.01 on most datasets while maintaining accuracy
+\item Penalty-based methods plateau at NFR $\sim$0.015--0.03, providing limited improvement over baseline
+\item Projected GD wins on 3/5 datasets by exploring the full feasible region via iterative projection
+\item BCWI is competitive (wins 2/5) and simpler, requiring no modifications to training
+\item All methods improve over baseline, which always ranks last
 \end{itemize}
 
 \section{Discussion}
 
-\subsection{Practical Implications}
+\subsection{Why Projected GD Outperforms BCWI}
 
-Our results demonstrate that simple penalty mechanisms can effectively prevent regression in standard supervised learning settings. The Soft Pareto approach is particularly appealing for production systems, as it provides substantial forgetting reduction with minimal accuracy cost.
+Projected GD wins on 3/5 datasets while BCWI wins on 2/5. The key difference lies in the feasible regions they explore:
 
-These methods are especially valuable in:
 \begin{itemize}
-\item Production-grade systems where regression on known-good cases is unacceptable
-\item Human-facing models where consistency matters for user trust
-\item High-stakes domains like medical diagnosis, fraud detection, or compliance monitoring
-\item Curriculum or staged learning setups where early learning should be preserved
+\item \textbf{BCWI} is restricted to the 1D line segment between incumbent weights $\theta_{inc}$ and candidate weights $\theta_{cand}$. The optimal point on this line may not achieve the best accuracy-NFR trade-off.
+\item \textbf{Projected GD} explores the full feasible region through iterative projection. Each epoch takes a gradient step toward lower loss, then projects back to NFR $\leq \varepsilon$ if needed. This allows the model to find paths through weight space that BCWI cannot reach.
 \end{itemize}
 
-\subsection{Limitations and Future Work}
+BCWI wins on Adult and Credit, suggesting these datasets have simpler feasible regions where the incumbent-candidate line is already near-optimal. Projected GD wins on Bank, Diabetes, and Spambase, where iterative exploration finds better solutions.
 
-While our penalty-based approaches show promise, several limitations merit discussion:
+\subsection{Why Penalty Methods Plateau}
+
+Penalty-based methods add a regularization term to the loss but do not directly constrain NFR. This creates two problems:
 
 \begin{enumerate}
-\item \textbf{Computational Overhead}: Tracking per-example losses or correctness requires additional memory and computation
-\item \textbf{Hyperparameter Sensitivity}: The penalty strength $\lambda$ requires tuning for each application
-\item \textbf{Limited Evaluation}: Our experiments focus on a single dataset and architecture
+\item \textbf{Indirect control}: The penalty strength $\lambda$ does not map directly to a target NFR. Higher $\lambda$ reduces NFR but also reduces accuracy, often more than necessary.
+\item \textbf{Epoch-local comparisons}: Confidence drop compares to the previous epoch, not the incumbent. This can drift from the incumbent over many epochs.
 \end{enumerate}
 
-Future work should explore these methods across diverse datasets, architectures, and learning scenarios, including online learning and continual learning settings.
+Fixed anchor and selective distillation compare to the incumbent but still use indirect penalty-based control.
+
+\subsection{When to Use Each Method}
+
+\begin{itemize}
+\item \textbf{Projected GD}: Best for new model training when the NFR constraint is critical. Requires knowing the target NFR upfront.
+\item \textbf{BCWI}: Simpler, good for retrofitting existing models. No retraining needed---just interpolate post-hoc.
+\item \textbf{Penalty methods}: Useful when the NFR target is unknown a priori, but expect limited NFR reduction.
+\end{itemize}
+
+\subsection{Limitations}
+
+\begin{enumerate}
+\item \textbf{Interpolation assumption}: Both projected GD and BCWI assume NFR is monotonic in the interpolation weight, which holds empirically but is not guaranteed.
+\item \textbf{Binary classification}: All experiments use binary classification; extension to multi-class requires defining NFR appropriately.
+\item \textbf{Architecture scope}: We use MLPs; results may differ for other architectures (CNNs, transformers).
+\end{enumerate}
 
 \section{Conclusion}
 
-We have introduced two penalty-based approaches for preventing regression in machine learning: margin-based and loss-based penalties that discourage performance degradation on previously learned examples. Motivated by concrete operational costs in production systems, our methods provide a lightweight mechanism for incorporating stability constraints into standard supervised learning.
+We have systematically compared six methods for preventing model regression: three penalty-based approaches (confidence drop, fixed anchor, selective distillation), two constraint-based approaches (projected gradient descent, backwards compatible weight interpolation), and a standard baseline.
 
-Our experimental evaluation demonstrates that these approaches can substantially reduce regression events with modest accuracy costs. The loss-based penalty, in particular, offers an effective trade-off for production scenarios where consistency on known-good examples has economic value.
+Our comprehensive evaluation across five datasets with 10 random splits each yields clear conclusions:
 
-This work establishes a foundation for treating model regression as an economic optimization problem rather than merely a technical curiosity. As machine learning systems become increasingly embedded in business-critical processes, techniques for managing the operational externalities of model updates will become essential components of responsible AI deployment.
+\begin{enumerate}
+\item \textbf{Constraint-based methods vastly outperform penalty-based methods.} Projected GD and BCWI consistently achieve NFR $<$ 0.01 while maintaining accuracy, whereas penalty methods plateau at NFR $\sim$0.015--0.03.
+
+\item \textbf{Training-time constraints beat post-hoc interpolation} on 3/5 datasets. Projected GD's iterative projection explores the full feasible region, finding better trade-offs than BCWI's 1D line search.
+
+\item \textbf{BCWI is competitive and simpler.} It wins on 2/5 datasets and requires no modification to training---just post-hoc interpolation.
+
+\item \textbf{All methods improve over baseline.} The baseline always ranks last, confirming that model regression is a real problem worth addressing.
+\end{enumerate}
+
+For practitioners, we recommend projected GD when NFR constraints are critical and the target is known upfront, and BCWI when simplicity and retrofitting existing models are priorities. Penalty-based methods remain useful when the NFR target is unknown, but practitioners should expect limited NFR reduction.
+
+This work establishes that treating NFR as a hard constraint during training is more effective than penalty-based regularization. As ML systems become increasingly embedded in production pipelines where backwards compatibility matters, these findings provide practical guidance for preventing model regression.
 
 
 

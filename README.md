@@ -2,51 +2,144 @@
 
 ## Background
 
-A well-known problem in machine learning is **regression**: as models update, they sometimes "forget" how to correctly handle examples they previously got right. This is especially frustrating in production or user-facing systems, where a model suddenly failing on known-good cases can be more disruptive than missing new ones.
+A well-known problem in machine learning is **model regression**: as models update, they sometimes "forget" how to correctly handle examples they previously got right. This is especially frustrating in production or user-facing systems, where a model suddenly failing on known-good cases can be more disruptive than missing new ones.
 
-Catastrophic forgetting is well-studied in **continual learning** (French, 1999), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively penalizing regression* during ordinary training.
+Catastrophic forgetting is well-studied in **continual learning** (French, 1999), and rehearsal/buffer methods are common. But for standard supervised learning, less attention has been paid to *actively preventing regression* during ordinary training.
+
+We compare **six methods** spanning penalty-based training, constrained optimization, and post-hoc interpolation.
 
 ---
 
 ## Approaches Compared
 
-We compare three strategies:
+### Penalty-Based Methods
 
-**1. Standard Training (Baseline)**  
-The usual approach—minimize training loss with no explicit mechanism to prevent forgetting.
+**1. Baseline (Standard ERM)**
+Standard empirical risk minimization with no explicit mechanism to prevent forgetting.
 
-**2. Forgetting-Penalized Training**  
-Inspired by continual learning methods like Elastic Weight Consolidation (Kirkpatrick et al., 2017), this adds a penalty whenever an example previously classified correctly becomes incorrect. It discourages "unlearning," but does not eliminate all changes.
+**2. Confidence Drop Penalty**
+Penalizes any per-example loss increase vs the previous epoch. Implements a "do no harm" principle but uses epoch-local comparisons, limiting its effectiveness.
 
-**3. Soft Pareto-Penalized Training**  
-Drawing on Pareto-improvement ideas and recent multi-task optimization research (Lin et al., 2019; Navon et al., 2021), this method penalizes *any* increase in per-example loss—not just flips from correct to incorrect. It enforces a softer, broader "do no harm" principle across all training examples.
+**3. Fixed Anchor Penalty**
+Uses incumbent model's loss as anchor on a held-out set. Penalizes when candidate loss exceeds incumbent loss: `max(0, ℓ_candidate(x) - ℓ_incumbent(x))`.
+
+**4. Selective Distillation**
+Distills candidate model to match incumbent's predictions (soft targets) on an anchor set where the incumbent was correct.
+
+### Constraint-Based Methods
+
+**5. Projected Gradient Descent**
+Train with ERM, then project back to the NFR ≤ ε feasible region after each epoch. Projection via binary search for interpolation weight with incumbent.
+
+**6. Backwards Compatible Weight Interpolation (BCWI)**
+Post-hoc approach: train candidate freely via ERM, then find interpolation weight α such that `θ = α·θ_incumbent + (1-α)·θ_candidate` achieves target NFR.
 
 ---
 
-## Experiment
+## Repository Structure
 
-On the Adult income dataset, we trained all three methods with identical neural network architectures. Penalties were introduced after a warmup period, allowing the model to stabilize before beginning to penalize regressions.
+```
+pareto-gd/
+├── README.md
+├── ms/                     # Manuscript
+│   ├── forget.tex
+│   ├── forget.bib
+│   └── forget.pdf
+├── scripts/                # Python scripts and notebooks
+│   ├── run_constrained.py          # Main benchmark runner
+│   ├── datasets.py                 # Dataset loading (OpenML)
+│   ├── models.py                   # MLP and training utilities
+│   ├── training.py                 # All 6 training methods
+│   ├── metrics.py                  # NFR, PFR, accuracy metrics
+│   ├── analyze_results.py          # Results analysis
+│   ├── forget-smooth.ipynb
+│   ├── pareto_gd_basic.ipynb
+│   ├── pareto_gd_penalized.ipynb
+│   └── penalized-sgd-soft-pareto.ipynb
+├── tabs/                   # Output tables (CSV)
+└── figs/                   # Output figures (PDF, PNG)
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+```bash
+pip install numpy pandas scikit-learn matplotlib torch scipy openml
+```
+
+### Run a Quick Test
+
+```bash
+python3 scripts/run_constrained.py --datasets diabetes --n-splits 1
+```
+
+### Run Full Benchmark
+
+```bash
+python3 scripts/run_constrained.py --n-splits 10
+```
+
+This runs all 6 methods across 5 datasets (adult, bank, credit, diabetes, spambase) with 10 random splits each.
+
+### Analyze Existing Results
+
+```bash
+python3 scripts/run_constrained.py --analyze-only --input tabs/results.csv
+```
+
+Outputs:
+- `tabs/results.csv` - Raw results (method, dataset, split, metrics)
+- `tabs/summary.csv` - Aggregated statistics per method/dataset
+- `tabs/rankings.csv` - Method rankings per dataset
+- `figs/all_datasets_pareto.pdf` - Combined Pareto frontiers
 
 ---
 
 ## Results
 
-| Method           | Total Forgetting | Final Train Acc | Final Val Acc |
-|------------------|------------------|-----------------|---------------|
-| **Baseline**     | 5668             | 0.794           | 0.788         |
-| **Forgetting Pen.** | 122          | 0.759           | 0.760         |
-| **Soft Pareto**  | 290              | 0.786           | 0.783         |
+### Method Rankings
 
-- Both penalized methods reduced forgetting by an order of magnitude **compared to baseline**.
-- **Soft Pareto** provided a strong trade-off: low forgetting with minimal accuracy loss.
-- **Forgetting-Penalized** achieved the lowest forgetting, but at a more significant cost to accuracy.
-- **Baseline training** delivered the highest accuracy—but experienced frequent regression.
+Methods ranked by best NFR achieved while maintaining accuracy within 1% of baseline:
+
+| Method | Avg Rank | #1 Wins | Best On |
+|--------|----------|---------|---------|
+| **projected_gd** | **1.40** | **3** | bank, diabetes, spambase |
+| bcwi | 1.60 | 2 | adult, credit |
+| fixed_anchor | 3.40 | 0 | - |
+| selective_distill | 4.20 | 0 | - |
+| confidence_drop | 4.40 | 0 | - |
+| baseline | 6.00 | 0 | - |
+
+### Best NFR Achieved (maintaining ≥99% baseline accuracy)
+
+| Dataset | projected_gd | bcwi | fixed_anchor | selective_distill | confidence_drop | baseline |
+|---------|--------------|------|--------------|-------------------|-----------------|----------|
+| Adult | 0.0003 | 0.0000 | 0.0303 | 0.0309 | 0.0329 | 0.0413 |
+| Bank | 0.0001 | 0.0002 | 0.0270 | 0.0276 | 0.0259 | 0.0317 |
+| Credit | 0.0013 | 0.0008 | 0.0161 | 0.0163 | 0.0209 | 0.0235 |
+| Diabetes | 0.0288 | 0.0347 | 0.0555 | 0.0520 | 0.0663 | 0.0732 |
+| Spambase | 0.0073 | 0.0099 | 0.0145 | 0.0160 | 0.0153 | 0.0179 |
+
+### Key Findings
+
+1. **Constraint-based methods vastly outperform penalty-based methods**
+   - projected_gd and bcwi achieve NFR < 0.01 while maintaining accuracy
+   - Penalty methods plateau at NFR ~0.015-0.03
+
+2. **Training-time constraints beat post-hoc interpolation** (3/5 datasets)
+   - projected_gd explores full feasible region via iterative projection
+   - bcwi is restricted to 1D line segment between incumbent and candidate
+
+3. **All methods beat baseline** - baseline always ranks last (rank 6)
 
 ---
 
 ## Contribution
 
-While regularization and continual learning are well-established, our work shows that **simple, lightweight penalty-based mechanisms**—added to ordinary training—can greatly reduce regression *without substantial accuracy loss*. The **Soft Pareto loss** is especially practical, implementing a “do no harm” bias that’s easy to integrate.
+We show that **constraint-based methods** (projected gradient descent, weight interpolation) are substantially more effective at preventing model regression than penalty-based methods. Projected GD achieves the best NFR-accuracy trade-off by exploring the full feasible region, while BCWI offers a simpler post-hoc alternative. Penalty-based methods provide some benefit but plateau at higher NFR values.
 
 ---
 
@@ -55,10 +148,13 @@ While regularization and continual learning are well-established, our work shows
 - **Production-grade systems** where regression on known-good cases is unacceptable.
 - **Human-facing models** where consistency matters to user trust.
 - **High-stakes domains** like medical, fraud detection, or compliance.
-- **Curriculum or staged learning setups**, where early learning shouldn't be overwritten by later stages.
+- **Model update pipelines** where backwards compatibility is required.
 
 ---
 
 ## Summary
 
-If maintaining correctness on previously learned examples matters—even under normal supervised training—then adding **penalty terms** for forgetting or loss regression is effective, easy to implement, and provides a natural “Pareto bias” in practice.
+For preventing model regression during supervised learning updates:
+- **Best overall**: Projected GD with NFR constraints
+- **Simplest effective**: BCWI post-hoc interpolation
+- **Penalty methods**: Some benefit, but fundamentally limited

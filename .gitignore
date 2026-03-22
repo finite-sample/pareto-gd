@@ -192,3 +192,16 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Project-specific outputs
+tabs/*.csv
+tabs/*.json
+figs/*.pdf
+figs/*.png
+
+# Data cache
+.cache/
+ms/forget.aux
+ms/forget.bbl
+ms/forget.blg
+ms/forget.out
