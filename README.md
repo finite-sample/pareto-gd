@@ -65,6 +65,42 @@ Post-hoc approach: train candidate freely via ERM, then find interpolation weigh
 
 ---
 
+## Why Regression Matters
+
+Model regression has real dollar costs. Consider a customer service operation:
+
+**Setup**:
+- 100,000 requests processed annually
+- ML model triages requests, with human review for errors
+- Cost per error: $50 (specialist time + correction overhead)
+- Incumbent model accuracy: 85%
+
+**The Problem**: You train a new model with 87% accuracy—but it misclassifies 5% of examples the incumbent got right (NFR = 5%).
+
+| Model | Accuracy | NFR | Errors | Regression Cost | Total Annual Cost |
+|-------|----------|-----|--------|-----------------|-------------------|
+| Incumbent | 85.0% | 0% | 15,000 | $0 | **$750,000** |
+| Candidate (raw) | 87.0% | 5% | 13,000 + 4,250 | $212,500 | **$862,500** |
+| Candidate + Projected GD | 86.5% | 0.5% | 13,500 + 425 | $21,250 | **$696,250** |
+
+**Key insight**: The raw candidate is *worse* despite higher accuracy. The 4,250 regressions (5% of 85,000 incumbent-correct examples) cost $212,500—exceeding the $100,000 saved from 2,000 fewer baseline errors.
+
+**With Projected GD**: Trading 0.5% accuracy for 0.5% NFR saves $166,250 annually. The constraint-based approach finds the optimal trade-off.
+
+### Break-Even Analysis
+
+At what NFR does accuracy improvement become worthless?
+
+```
+Break-even NFR = (accuracy_gain × total_examples) / incumbent_correct
+              = (0.02 × 100,000) / 85,000
+              = 2.35%
+```
+
+Any NFR above 2.35% means the candidate costs more than it saves—regardless of its higher accuracy.
+
+---
+
 ## Quick Start
 
 ### Prerequisites

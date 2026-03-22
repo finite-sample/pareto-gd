@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "(Don't) Forget About It: Forgetting-Penalized Supervised Learning"
+authors:
+  - family-names: Sood
+    given-names: Gaurav
+    email: gsood07@gmail.com
+repository-code: https://github.com/finite-sample/pareto-gd
+abstract: >-
+  Methods for preventing model regression during ML model retraining.
+  Compares penalty-based and constraint-based approaches, finding that
+  constraint-based methods (projected gradient descent, BCWI) vastly
+  outperform penalty-based methods in preventing negative flip rates
+  while maintaining accuracy.
+keywords:
+  - machine learning
+  - model regression
+  - forgetting
+  - constraint-based training
+  - projected gradient descent
+  - backwards compatible weight interpolation
+license: MIT
