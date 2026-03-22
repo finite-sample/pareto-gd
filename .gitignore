@@ -201,6 +201,12 @@ figs/*.png
 
 # Data cache
 .cache/
+
+# Test output folders
+figs/test/
+tabs/test/
+
+# LaTeX build artifacts
 ms/forget.aux
 ms/forget.bbl
 ms/forget.blg
