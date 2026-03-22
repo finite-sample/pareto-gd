@@ -2,32 +2,47 @@
 
 ## TL;DR
 
-Constraint-based methods (projected GD, BCWI) vastly outperform penalty-based methods for preventing model regression. Mean NFR ~0.008 vs ~0.03 across 5 datasets.
+Projected gradient descent achieves the best accuracy-NFR trade-off across 32 OpenML-CC18 datasets and 2 model types (MLP, Logistic Regression). Using the combined score (Accuracy − 2×NFR), projected_gd scores 0.749 vs 0.723 for BCWI and 0.526 for baseline.
 
 ---
 
 ## Results
 
-| Method | Mean NFR |
-|--------|----------|
-| projected_gd | 0.008 |
-| bcwi | 0.009 |
-| fixed_anchor | 0.029 |
-| selective_distill | 0.029 |
-| confidence_drop | 0.032 |
-| baseline | 0.038 |
+### Combined Score (Accuracy − λ×NFR)
+
+| Method | λ=1 | λ=2 | λ=5 |
+|--------|-----|-----|-----|
+| projected_gd | 0.770 | **0.749** | 0.686 |
+| bcwi | 0.749 | 0.723 | 0.644 |
+| selective_distill | 0.694 | 0.599 | 0.313 |
+| fixed_anchor | 0.687 | 0.590 | 0.299 |
+| confidence_drop | 0.671 | 0.556 | 0.213 |
+| baseline | 0.655 | 0.526 | 0.138 |
+
+### Pareto Win Rate (64 dataset-model pairs)
+
+| Method | Wins | Rate |
+|--------|------|------|
+| projected_gd | 47/64 | 73% |
+| bcwi | 29/64 | 45% |
+| fixed_anchor | 29/64 | 45% |
+| selective_distill | 28/64 | 44% |
+| confidence_drop | 21/64 | 33% |
+| baseline | 20/64 | 31% |
 
 ### Key Findings
 
 1. **Constraint-based methods vastly outperform penalty-based methods**
-   - projected_gd and bcwi achieve NFR < 0.01 while maintaining accuracy
-   - Penalty methods plateau at NFR ~0.015-0.03
+   - projected_gd and bcwi achieve NFR ~0.02 while maintaining accuracy
+   - Penalty methods plateau at NFR ~0.10-0.13
 
-2. **Training-time constraints beat post-hoc interpolation** (3/5 datasets)
-   - projected_gd explores full feasible region via iterative projection
-   - bcwi is restricted to 1D line segment between incumbent and candidate
+2. **Projected GD dominates the Pareto frontier** (73% win rate)
+   - Explores full feasible region via iterative projection
+   - BCWI is restricted to 1D line segment between incumbent and candidate
 
-3. **All methods beat baseline** - baseline always ranks last (rank 6)
+3. **LogReg validates theory** (Theorem 4: NFR monotonicity)
+   - NFR monotonicity holds exactly for linear models, enabling reliable binary search
+   - LogReg baseline NFR = 0.210 vs projected_gd NFR = 0.024
 
 ---
 
@@ -104,28 +119,29 @@ pip install numpy pandas scikit-learn matplotlib torch scipy openml
 ### Run a Quick Test
 
 ```bash
-python3 scripts/run_constrained.py --datasets diabetes --n-splits 1
+python3 scripts/run_constrained.py --datasets diabetes --n-splits 1 --model mlp
 ```
 
-### Run Full Benchmark
+### Run Full CC18 Benchmark
 
 ```bash
-python3 scripts/run_constrained.py --n-splits 10
+python3 scripts/run_constrained.py --cc18 --n-splits 5 --model mlp
+python3 scripts/run_constrained.py --cc18 --n-splits 5 --model logreg
 ```
 
-This runs all 6 methods across 5 datasets (adult, bank, credit, diabetes, spambase) with 10 random splits each.
+This runs all 6 methods across 32 OpenML-CC18 datasets with 5 random splits each.
 
 ### Analyze Existing Results
 
 ```bash
-python3 scripts/run_constrained.py --analyze-only --input tabs/results.csv
+python3 scripts/run_constrained.py --analyze-only --input tabs/cc18_results/results.csv
 ```
 
 Outputs:
-- `tabs/results.csv` - Raw results (method, dataset, split, metrics)
-- `tabs/summary.csv` - Aggregated statistics per method/dataset
-- `tabs/rankings.csv` - Method rankings per dataset
-- `figs/all_datasets_pareto.pdf` - Combined Pareto frontiers
+- `tabs/cc18_results/results.csv` - Raw results (method, dataset, split, model_type, metrics)
+- `tabs/cc18_results/summary.csv` - Aggregated statistics per method/dataset
+- `tabs/cc18_results/rankings.csv` - Method rankings per dataset
+- `figs/cc18_results/all_datasets_pareto.pdf` - Combined Pareto frontiers
 
 ---
 

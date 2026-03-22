@@ -147,7 +147,7 @@
 \maketitle
 
 \begin{abstract}
-During continued training, a machine-learning model can begin misclassifying examples it previously labeled correctly—a within-task instability often called model regression. While catastrophic forgetting across different tasks has been studied for decades, standard supervised objectives still optimize only average accuracy and ignore these per-example reversals, even though each flip can trigger costly downstream work in production pipelines that rely on stable behavior. We provide both theoretical and empirical analysis comparing six methods for preventing model regression: three penalty-based approaches (confidence drop, fixed anchor, selective distillation), two constraint-based approaches (projected gradient descent, backwards compatible weight interpolation), and a standard baseline. Our theoretical contributions include: (1) a feasibility guarantee showing BCWI always finds a valid solution, (2) a proof that projected GD explores a strictly larger region of weight space than BCWI, (3) a construction demonstrating that penalty methods cannot guarantee constraint satisfaction for finite penalty strength, and (4) a monotonicity result justifying binary search for the projection step. In comprehensive experiments across 32 OpenML-CC18 binary classification datasets with both MLP and logistic regression models (5 random splits each, 1,920 total training runs), we find that constraint-based methods vastly outperform penalty-based methods. Using a combined score metric (Accuracy $- 2 \times$ NFR), projected gradient descent achieves 0.739 versus 0.716 for BCWI and 0.526 for baseline. Projected GD wins 64\% of dataset-model pairs on the Pareto frontier. These findings establish that training-time NFR constraints are more effective than penalty-based regularization for preventing model regression.
+During continued training, a machine-learning model can begin misclassifying examples it previously labeled correctly—a within-task instability often called model regression. While catastrophic forgetting across different tasks has been studied for decades, standard supervised objectives still optimize only average accuracy and ignore these per-example reversals, even though each flip can trigger costly downstream work in production pipelines that rely on stable behavior. We provide both theoretical and empirical analysis comparing six methods for preventing model regression: three penalty-based approaches (confidence drop, fixed anchor, selective distillation), two constraint-based approaches (projected gradient descent, backwards compatible weight interpolation), and a standard baseline. Our theoretical contributions include: (1) a feasibility guarantee showing BCWI always finds a valid solution, (2) a proof that projected GD explores a strictly larger region of weight space than BCWI, (3) a construction demonstrating that penalty methods cannot guarantee constraint satisfaction for finite penalty strength, and (4) a monotonicity result justifying binary search for the projection step. In comprehensive experiments across 32 OpenML-CC18 binary classification datasets with both MLP and logistic regression models (5 random splits each, 1,920 total training runs), we find that constraint-based methods vastly outperform penalty-based methods. Using a combined score metric (Accuracy $- 2 \times$ NFR), projected gradient descent achieves 0.749 versus 0.723 for BCWI and 0.526 for baseline. Projected GD wins 73\% of dataset-model pairs on the Pareto frontier. These findings establish that training-time NFR constraints are more effective than penalty-based regularization for preventing model regression.
 \end{abstract}
 
 \section{Introduction}\label{sec:intro}
@@ -656,12 +656,12 @@ Table~\ref{tab:combined} shows the combined score (Accuracy $- \lambda \times$ N
 \toprule
 Method & $\lambda=1$ & $\lambda=2$ & $\lambda=5$ \\
 \midrule
-projected\_gd & 0.762 & \textbf{0.739} & 0.670 \\
-bcwi & 0.744 & 0.716 & 0.631 \\
-selective\_distill & 0.670 & 0.558 & 0.222 \\
-fixed\_anchor & 0.665 & 0.554 & 0.222 \\
+projected\_gd & 0.770 & \textbf{0.749} & 0.686 \\
+bcwi & 0.749 & 0.723 & 0.644 \\
+selective\_distill & 0.694 & 0.599 & 0.313 \\
+fixed\_anchor & 0.687 & 0.590 & 0.299 \\
+confidence\_drop & 0.671 & 0.556 & 0.213 \\
 baseline & 0.655 & 0.526 & 0.138 \\
-confidence\_drop & 0.642 & 0.512 & 0.119 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -676,12 +676,12 @@ Table~\ref{tab:pareto} shows the Pareto win rate for each method across the 64 d
 \toprule
 Method & Wins & Win Rate \\
 \midrule
-projected\_gd & 41/64 & 64\% \\
-selective\_distill & 24/64 & 38\% \\
-confidence\_drop & 22/64 & 34\% \\
-bcwi & 21/64 & 33\% \\
-fixed\_anchor & 15/64 & 23\% \\
-baseline & 8/64 & 12\% \\
+projected\_gd & 47/64 & 73\% \\
+bcwi & 29/64 & 45\% \\
+fixed\_anchor & 29/64 & 45\% \\
+selective\_distill & 28/64 & 44\% \\
+confidence\_drop & 21/64 & 33\% \\
+baseline & 20/64 & 31\% \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -696,12 +696,12 @@ Table~\ref{tab:bymodel} shows average accuracy and NFR by model type.
 \toprule
 Model & Method & Accuracy & NFR \\
 \midrule
-\multirow{3}{*}{MLP (85\% avg acc)} & projected\_gd & 0.851 & 0.021 \\
- & bcwi & 0.844 & 0.016 \\
+\multirow{3}{*}{MLP (85\% avg acc)} & projected\_gd & 0.853 & 0.018 \\
+ & bcwi & 0.846 & 0.014 \\
  & baseline & 0.851 & 0.049 \\
 \midrule
-\multirow{3}{*}{LogReg (71\% avg acc)} & projected\_gd & 0.720 & 0.026 \\
- & bcwi & 0.700 & 0.041 \\
+\multirow{3}{*}{LogReg (73\% avg acc)} & projected\_gd & 0.729 & 0.024 \\
+ & bcwi & 0.705 & 0.038 \\
  & baseline & 0.717 & 0.210 \\
 \bottomrule
 \end{tabular}
@@ -719,9 +719,9 @@ Figure \ref{fig:pareto} shows the Pareto frontiers across representative dataset
 Key observations:
 
 \begin{itemize}
-\item Projected GD achieves the highest combined score (0.739 at $\lambda=2$) and wins 64\% of dataset-model pairs
+\item Projected GD achieves the highest combined score (0.749 at $\lambda=2$) and wins 73\% of dataset-model pairs
 \item Constraint-based methods (projected GD, BCWI) achieve mean NFR $\sim$0.02--0.03 while maintaining accuracy
-\item Penalty-based methods plateau at NFR $\sim$0.11--0.13, providing limited improvement over baseline (0.129)
+\item Penalty-based methods plateau at NFR $\sim$0.10--0.13, providing limited improvement over baseline (NFR = 0.129)
 \item LogReg validates Theorem~\ref{thm:nfr-monotonic}: NFR monotonicity holds exactly, enabling reliable projection
 \item MLP achieves lower NFR than LogReg due to higher model capacity and accuracy
 \end{itemize}
@@ -730,14 +730,14 @@ Key observations:
 
 \subsection{Why Projected GD Outperforms BCWI}
 
-Projected GD achieves a combined score of 0.739 vs 0.716 for BCWI at $\lambda=2$, and wins 64\% of dataset-model pairs on the Pareto frontier compared to 33\% for BCWI. The key difference lies in the feasible regions they explore:
+Projected GD achieves a combined score of 0.749 vs 0.723 for BCWI at $\lambda=2$, and wins 73\% of dataset-model pairs on the Pareto frontier compared to 45\% for BCWI. The key difference lies in the feasible regions they explore:
 
 \begin{itemize}
 \item \textbf{BCWI} is restricted to the 1D line segment between incumbent weights $\theta_{inc}$ and candidate weights $\theta_{cand}$. The optimal point on this line may not achieve the best accuracy-NFR trade-off.
 \item \textbf{Projected GD} explores the full feasible region through iterative projection. Each epoch takes a gradient step toward lower loss, then projects back to NFR $\leq \varepsilon$ if needed. This allows the model to find paths through weight space that BCWI cannot reach.
 \end{itemize}
 
-BCWI achieves slightly lower NFR on MLP (0.016 vs 0.021) but at the cost of accuracy. Projected GD maintains higher accuracy while still achieving competitive NFR.
+BCWI achieves slightly lower NFR on MLP (0.014 vs 0.018) but at the cost of accuracy. Projected GD maintains higher accuracy while still achieving competitive NFR.
 
 \subsection{Why Penalty Methods Plateau}
 
@@ -752,7 +752,7 @@ The gap is stark: penalty methods achieve mean NFR $\sim$0.11--0.13 while constr
 
 \subsection{LogReg Validates NFR Monotonicity}
 
-Logistic regression provides a clean validation of Theorem~\ref{thm:nfr-monotonic}. Because the logits are linear in the interpolation weight $\alpha$, NFR is guaranteed to be monotonic. This allows binary search to find the exact projection point efficiently. The LogReg results (NFR = 0.026 for projected GD, 0.041 for BCWI vs 0.210 for baseline) demonstrate that the theoretical guarantees translate to substantial practical improvements. The higher baseline NFR for LogReg (0.210 vs 0.049 for MLP) reflects the lower model capacity and accuracy.
+Logistic regression provides a clean validation of Theorem~\ref{thm:nfr-monotonic}. Because the logits are linear in the interpolation weight $\alpha$, NFR is guaranteed to be monotonic. This allows binary search to find the exact projection point efficiently. The LogReg results (NFR = 0.024 for projected GD, 0.038 for BCWI vs 0.210 for baseline) demonstrate that the theoretical guarantees translate to substantial practical improvements. The higher baseline NFR for LogReg (0.210 vs 0.049 for MLP) reflects the lower model capacity and accuracy.
 
 \subsection{When to Use Each Method}
 
@@ -778,15 +778,15 @@ We have systematically compared six methods for preventing model regression: thr
 Our comprehensive evaluation across 32 OpenML-CC18 datasets with 2 model types (MLP, logistic regression) and 5 random splits each (1,920 total training runs) yields clear conclusions:
 
 \begin{enumerate}
-\item \textbf{Constraint-based methods vastly outperform penalty-based methods.} Using the combined score (Accuracy $- 2 \times$ NFR), projected GD achieves 0.739 compared to 0.526 for baseline---a 40\% improvement.
+\item \textbf{Constraint-based methods vastly outperform penalty-based methods.} Using the combined score (Accuracy $- 2 \times$ NFR), projected GD achieves 0.749 compared to 0.526 for baseline---a 42\% improvement.
 
-\item \textbf{Projected GD dominates.} It wins 64\% of dataset-model pairs on the Pareto frontier and achieves the highest combined score across all penalty weights tested.
+\item \textbf{Projected GD dominates.} It wins 73\% of dataset-model pairs on the Pareto frontier and achieves the highest combined score across all penalty weights tested.
 
-\item \textbf{BCWI is competitive and simpler.} It achieves a combined score of 0.716 (vs 0.739 for projected GD) and requires no modification to training---just post-hoc interpolation.
+\item \textbf{BCWI is competitive and simpler.} It achieves a combined score of 0.723 (vs 0.749 for projected GD) and requires no modification to training---just post-hoc interpolation.
 
 \item \textbf{LogReg validates theory.} The NFR monotonicity result (Theorem~\ref{thm:nfr-monotonic}) holds exactly for logistic regression, enabling reliable binary search for projection.
 
-\item \textbf{All methods improve over baseline.} The baseline wins only 12\% of Pareto comparisons, confirming that model regression is a real problem worth addressing.
+\item \textbf{All methods improve over baseline.} The baseline wins only 31\% of Pareto comparisons, confirming that model regression is a real problem worth addressing.
 \end{enumerate}
 
 For practitioners, we recommend projected GD when NFR constraints are critical and the target is known upfront, and BCWI when simplicity and retrofitting existing models are priorities. Penalty-based methods remain useful when the NFR target is unknown, but practitioners should expect limited NFR reduction.
