@@ -31,6 +31,7 @@ class BenchmarkDataset:
     n_features: int
     n_samples_train: int
     n_samples_test: int
+    num_classes: int = 2
 
 
 OPENML_DATASETS = {
@@ -40,6 +41,95 @@ OPENML_DATASETS = {
     "diabetes": 37,
     "spambase": 44,
 }
+
+CC18_BINARY_DATASETS = {
+    "adult": 1590,
+    "australian": 40981,
+    "bank-marketing": 1461,
+    "banknote-authentication": 1462,
+    "bioresponse": 4134,
+    "blood-transfusion": 1464,
+    "breast-w": 15,
+    "churn": 40701,
+    "climate-model-simulation-crashes": 40994,
+    "credit-approval": 29,
+    "credit-g": 31,
+    "cylinder-bands": 6332,
+    "diabetes": 37,
+    "dresses-sales": 23381,
+    "eeg-eye-state": 1471,
+    "electricity": 151,
+    "heart-c": 49,
+    "heart-h": 50,
+    "heart-statlog": 53,
+    "hepatitis": 55,
+    "hill-valley": 1479,
+    "ilpd": 1480,
+    "internet-advertisements": 40978,
+    "ionosphere": 59,
+    "jm1": 1053,
+    "kc1": 1067,
+    "kc2": 1063,
+    "kr-vs-kp": 3,
+    "madelon": 1485,
+    "mushroom": 24,
+    "nomao": 1486,
+    "numerai28.6": 23517,
+    "ozone-level-8hr": 1487,
+    "pc1": 1068,
+    "pc3": 1050,
+    "pc4": 1049,
+    "phishingwebsites": 4534,
+    "phoneme": 1489,
+    "qsar-biodeg": 1494,
+    "sick": 38,
+    "sonar": 40,
+    "spambase": 44,
+    "steel-plates-fault": 1504,
+    "wdbc": 1510,
+    "wilt": 40983,
+}
+
+CC18_MULTICLASS_DATASETS = {
+    "analcatdata_authorship": 458,
+    "analcatdata_dmft": 469,
+    "anneal": 2,
+    "car": 40975,
+    "cmc": 23,
+    "cnae-9": 1468,
+    "collins": 40971,
+    "connect-4": 40668,
+    "dna": 40670,
+    "first-order-theorem-proving": 1475,
+    "gas-drift": 1476,
+    "har": 1478,
+    "japanesevowels": 375,
+    "kdd_ipums_la_97-small": 1049,
+    "ldpa": 1483,
+    "letter": 6,
+    "mfeat-factors": 12,
+    "mfeat-fourier": 14,
+    "mfeat-karhunen": 16,
+    "mfeat-morphological": 18,
+    "mfeat-pixel": 20,
+    "mfeat-zernike": 22,
+    "mnist_784": 554,
+    "optdigits": 28,
+    "pendigits": 32,
+    "satimage": 182,
+    "segment": 36,
+    "semeion": 1501,
+    "splice": 46,
+    "texture": 40499,
+    "vehicle": 54,
+    "volcanoes-a1": 1527,
+    "vowel": 307,
+    "waveform-5000": 60,
+    "wine-quality-red": 40691,
+    "wine-quality-white": 40498,
+    "yeast": 181,
+}
+
 
 
 def get_cache_dir() -> Path:
@@ -122,6 +212,7 @@ def preprocess_dataframe(
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     target_col: str,
+    force_binary: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Preprocess dataframes: encode target, one-hot categoricals, scale numerics."""
     x_train_df = train_df.drop(columns=[target_col])
@@ -134,7 +225,7 @@ def preprocess_dataframe(
     y_test_enc = le.transform(y_test.astype(str))
 
     classes = le.classes_
-    if len(classes) > 2:
+    if force_binary and len(classes) > 2:
         last_class_idx = list(classes).index(classes[-1])
         y_train_enc = (y_train_enc == last_class_idx).astype(int)
         y_test_enc = (y_test_enc == last_class_idx).astype(int)
@@ -264,15 +355,78 @@ DATASET_LOADERS = {
 
 
 def load_dataset(name: str, **kwargs) -> BenchmarkDataset:
-    """Load dataset by name."""
-    if name not in DATASET_LOADERS:
-        raise ValueError(f"Unknown dataset: {name}. Available: {list(DATASET_LOADERS.keys())}")
-    return DATASET_LOADERS[name](**kwargs)
+    """Load dataset by name (hardcoded or CC18)."""
+    if name in DATASET_LOADERS:
+        return DATASET_LOADERS[name](**kwargs)
+    dataset_id = get_cc18_id(name)
+    if dataset_id is not None:
+        return load_cc18_dataset(dataset_id, **kwargs)
+    raise ValueError(f"Unknown dataset: {name}. Available: {list(DATASET_LOADERS.keys())} + CC18 datasets")
 
 
 def list_datasets() -> list[str]:
-    """Return list of available dataset names."""
+    """Return list of hardcoded dataset names."""
     return list(DATASET_LOADERS.keys())
+
+
+def list_cc18_binary() -> list[str]:
+    """Return CC18 binary classification dataset names."""
+    return list(CC18_BINARY_DATASETS.keys())
+
+
+def list_cc18_multiclass() -> list[str]:
+    """Return CC18 multiclass classification dataset names."""
+    return list(CC18_MULTICLASS_DATASETS.keys())
+
+
+def list_cc18_all() -> list[str]:
+    """Return all CC18 dataset names (binary + multiclass)."""
+    return list_cc18_binary() + list_cc18_multiclass()
+
+
+def get_cc18_id(name: str) -> int | None:
+    """Get OpenML ID for a CC18 dataset name (binary or multiclass)."""
+    name_lower = name.lower()
+    if name_lower in CC18_BINARY_DATASETS:
+        return CC18_BINARY_DATASETS[name_lower]
+    if name_lower in CC18_MULTICLASS_DATASETS:
+        return CC18_MULTICLASS_DATASETS[name_lower]
+    return None
+
+
+def is_cc18_binary(name: str) -> bool:
+    """Check if a dataset is binary classification."""
+    return name.lower() in CC18_BINARY_DATASETS
+
+
+def load_cc18_dataset(dataset_id: int, test_size: float = 0.3, seed: int = 42, force_binary: bool = False, max_samples: int | None = None) -> BenchmarkDataset:
+    """Load any CC18 dataset by OpenML ID. Optionally subsample to max_samples."""
+    import openml
+
+    train_df, test_df, target = load_openml_dataset(dataset_id, test_size, seed)
+
+    if max_samples is not None:
+        total = len(train_df) + len(test_df)
+        if total > max_samples:
+            frac = max_samples / total
+            train_df = train_df.sample(frac=frac, random_state=seed).reset_index(drop=True)
+            test_df = test_df.sample(frac=frac, random_state=seed).reset_index(drop=True)
+    x_train, y_train, x_test, y_test = preprocess_dataframe(train_df, test_df, target, force_binary=force_binary)
+
+    ds = openml.datasets.get_dataset(dataset_id, download_data=False)
+    num_classes = len(np.unique(y_train))
+
+    return BenchmarkDataset(
+        name=ds.name,
+        x_train=x_train,
+        y_train=y_train,
+        x_test=x_test,
+        y_test=y_test,
+        n_features=x_train.shape[1],
+        n_samples_train=len(x_train),
+        n_samples_test=len(x_test),
+        num_classes=num_classes,
+    )
 
 
 if __name__ == "__main__":

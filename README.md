@@ -9,33 +9,39 @@
 - *Constraint-based*: enforce hard limits on regression rate during or after training (projected gradient descent, BCWI)
 - *Baseline*: standard training with no regression prevention
 
-**Finding**: Constraint-based methods vastly outperform penalty-based methods. The intuition: penalties can only *incentivize* low regression but cannot *guarantee* it, while constraints enforce the limit directly. Projected GD wins 73% of Pareto comparisons across 32 datasets and 2 model types, achieving regression rates of ~2% versus ~13% for baseline.
+**Finding**: Constraint-based methods achieve larger NFR reductions than penalty-based methods. Projected GD appears on the Pareto frontier in 96% of datasets (78/81), achieving +80% NFR improvement over baseline with the best average rank (2.49). Benchmark: 81 OpenML-CC18 datasets × 2 models (MLP, logreg) × 10 splits = 54,120 training runs.
 
 ---
 
-## Results
+## Results (81 datasets × 2 models)
 
-### Combined Score (Accuracy − λ×NFR)
+### Benchmark Summary
 
-| Method | λ=1 | λ=2 | λ=5 |
-|--------|-----|-----|-----|
-| projected_gd | 0.770 | **0.749** | 0.686 |
-| bcwi | 0.749 | 0.723 | 0.644 |
-| selective_distill | 0.694 | 0.599 | 0.313 |
-| fixed_anchor | 0.687 | 0.590 | 0.299 |
-| confidence_drop | 0.671 | 0.556 | 0.213 |
-| baseline | 0.655 | 0.526 | 0.138 |
+| Method | Frontier | Free Wins | ΔNFR | ΔAcc | Avg Rank | #1 Wins | Hypervolume |
+|--------|----------|-----------|------|------|----------|---------|-------------|
+| Projected GD | 78/81 | 20 | +80% | -2.2% | 2.49 | 42 | 0.7835 |
+| BCWI | 46/81 | 5 | +73% | -2.9% | 3.83 | 10 | 0.7681 |
+| Fixed Anchor | 45/81 | 18 | +30% | -0.8% | 2.81 | 16 | 0.7550 |
+| Selective Distill | 33/81 | 37 | +24% | -0.1% | 3.12 | 11 | 0.7527 |
+| Confidence Drop | 18/81 | 37 | +8% | -0.1% | 3.96 | 1 | 0.7398 |
+| Baseline (ERM) | 10/81 | 0 | +0% | +0.0% | 4.78 | 1 | 0.7360 |
 
-### Pareto Win Rate (64 dataset-model pairs)
+### Pareto Frontier Membership (81 datasets)
 
-| Method | Wins | Rate |
-|--------|------|------|
-| projected_gd | 47/64 | 73% |
-| bcwi | 29/64 | 45% |
-| fixed_anchor | 29/64 | 45% |
-| selective_distill | 28/64 | 44% |
-| confidence_drop | 21/64 | 33% |
-| baseline | 20/64 | 31% |
+| Method | Appearances | Rate |
+|--------|-------------|------|
+| Projected GD | 78/81 | 96% |
+| BCWI | 46/81 | 57% |
+| Fixed Anchor | 45/81 | 56% |
+| Selective Distill | 33/81 | 41% |
+| Confidence Drop | 18/81 | 22% |
+| Baseline (ERM) | 10/81 | 12% |
+
+**Key takeaways:**
+- **Projected GD** dominates: 96% Pareto frontier, 42 #1 wins, best avg rank (2.49)
+- **Constraint-based methods** achieve +73-80% NFR improvement over baseline
+- **Penalty methods** achieve more "free wins" (37 each for Selective Distill and Confidence Drop)
+- **Baseline** appears on frontier in only 12% of datasets, confirming regression is worth preventing
 
 ---
 
@@ -112,29 +118,31 @@ pip install numpy pandas scikit-learn matplotlib torch scipy openml
 ### Run a Quick Test
 
 ```bash
-python3 scripts/run_constrained.py --datasets diabetes --n-splits 1 --model mlp
+python3 scripts/run_experiments.py --datasets diabetes --n-splits 1 --model mlp
 ```
 
 ### Run Full CC18 Benchmark
 
 ```bash
-python3 scripts/run_constrained.py --cc18 --n-splits 5 --model mlp
-python3 scripts/run_constrained.py --cc18 --n-splits 5 --model logreg
+python3 scripts/run_experiments.py --cc18-all --n-splits 10 --model mlp --outdir tabs/
 ```
 
-This runs all 6 methods across 32 OpenML-CC18 datasets with 5 random splits each.
+This runs all 6 methods across 81 OpenML-CC18 datasets with 10 random splits each.
 
-### Analyze Existing Results
+### Analyze Results
 
 ```bash
-python3 scripts/run_constrained.py --analyze-only --input tabs/cc18_results/results.csv
+python3 scripts/analyze.py tabs/results.csv
 ```
 
 Outputs:
-- `tabs/cc18_results/results.csv` - Raw results (method, dataset, split, model_type, metrics)
-- `tabs/cc18_results/summary.csv` - Aggregated statistics per method/dataset
-- `tabs/cc18_results/rankings.csv` - Method rankings per dataset
-- `figs/cc18_results/all_datasets_pareto.pdf` - Combined Pareto frontiers
+- `tabs/results.csv` - Raw results (method, dataset, split, model_type, metrics)
+- `tabs/summary.csv` - Aggregated statistics per method/dataset
+- `tabs/summary.tex` - LaTeX summary table
+- `tabs/pareto_frontier.tex` - LaTeX Pareto frontier table
+- `tabs/rankings.tex` - LaTeX rankings table
+- `figs/all_datasets_pareto.pdf` - Combined Pareto frontiers
+- `figs/figure1_representative.pdf` - Representative 2x2 figure
 
 ---
 
@@ -147,17 +155,14 @@ pareto-gd/
 │   ├── forget.tex
 │   ├── forget.bib
 │   └── forget.pdf
-├── scripts/                # Python scripts and notebooks
-│   ├── run_constrained.py          # Main benchmark runner
+├── scripts/                # Python scripts
+│   ├── run_experiments.py          # Main benchmark runner
+│   ├── analyze.py                  # Results analysis and table generation
 │   ├── datasets.py                 # Dataset loading (OpenML)
 │   ├── models.py                   # MLP and training utilities
-│   ├── training.py                 # All 6 training methods
-│   ├── metrics.py                  # NFR, PFR, accuracy metrics
-│   ├── analyze_results.py          # Results analysis
-│   ├── forget-smooth.ipynb
-│   ├── pareto_gd_basic.ipynb
-│   ├── pareto_gd_penalized.ipynb
-│   └── penalized-sgd-soft-pareto.ipynb
-├── tabs/                   # Output tables (CSV)
-└── figs/                   # Output figures (PDF, PNG)
+│   ├── training.py                 # Binary classification methods
+│   ├── training_multiclass.py      # Multiclass methods
+│   └── metrics.py                  # NFR, PFR, accuracy metrics
+├── tabs/                   # Output tables (CSV, LaTeX)
+└── figs/                   # Output figures (PDF)
 ```

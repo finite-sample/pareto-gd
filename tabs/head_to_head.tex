@@ -1,0 +1,17 @@
+\begin{table*}[t]
+\centering
+\caption{Head-to-Head Wins (81 datasets): row method vs column method}
+\label{tab:head-to-head}
+\begin{tabular}{lcccccc}
+\toprule
+ & Projected & Fixed & Selective & Confidence & BCWI & Baseline \\
+\midrule
+Projected GD & -- & 52 (64\%) & 52 (64\%) & 54 (67\%) & 46 (57\%) & 56 (69\%) \\
+Fixed Anchor & 27 (33\%) & -- & 50 (62\%) & 65 (80\%) & 39 (48\%) & 72 (89\%) \\
+Selective Distill & 28 (35\%) & 30 (37\%) & -- & 60 (74\%) & 40 (49\%) & 72 (89\%) \\
+Confidence Drop & 27 (33\%) & 15 (19\%) & 21 (26\%) & -- & 40 (49\%) & 61 (75\%) \\
+BCWI & 11 (14\%) & 40 (49\%) & 39 (48\%) & 41 (51\%) & -- & 45 (56\%) \\
+Baseline (ERM) & 25 (31\%) & 9 (11\%) & 9 (11\%) & 20 (25\%) & 36 (44\%) & -- \\
+\bottomrule
+\end{tabular}
+\end{table*}
